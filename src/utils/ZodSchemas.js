@@ -1,55 +1,14 @@
 import { z } from "zod";
 
-// Schema for a 3D Coordinate
+// Ensure no internal `.catch()` logic on older Zod structures
 export const CoordSchema = z.object({
-  x: z.number().catch(0),
-  y: z.number().catch(0),
-  z: z.number().catch(0),
+  x: z.number().default(0),
+  y: z.number().default(0),
+  z: z.number().default(0),
 }).nullable();
 
-// Schema for a Component Data Row
-export const ComponentRowSchema = z.object({
-  _rowIndex: z.number(),
-  _modified: z.any().optional(),
-  _logTags: z.any().optional(),
-
-  csvSeqNo: z.union([z.string(), z.number()]).optional().catch(""),
-  type: z.string().toUpperCase().catch("UNKNOWN"),
-  text: z.string().optional().catch(""),
-  pipelineRef: z.string().optional().catch(""),
-  refNo: z.string().optional().catch(""),
-
-  bore: z.number().catch(0),
-  branchBore: z.number().nullable().optional().catch(null),
-
-  ep1: z.any().optional(),
-  ep2: z.any().optional(),
-  cp: z.any().optional(),
-  bp: z.any().optional(),
-  supportCoor: z.any().optional(),
-
-  skey: z.string().optional().catch(""),
-  supportName: z.string().optional().catch(""),
-  supportGuid: z.string().optional().catch(""),
-
-  ca: z.record(z.any()).optional().catch({}),
-
-  fixingAction: z.string().nullable().optional().catch(null),
-  fixingActionTier: z.number().nullable().optional().catch(null),
-  fixingActionRuleId: z.string().nullable().optional().catch(null),
-
-  // Derived columns
-  len1: z.number().nullable().optional(),
-  axis1: z.string().nullable().optional(),
-  len2: z.number().nullable().optional(),
-  axis2: z.string().nullable().optional(),
-  len3: z.number().nullable().optional(),
-  axis3: z.string().nullable().optional(),
-  brlen: z.number().nullable().optional(),
-  deltaX: z.number().nullable().optional(),
-  deltaY: z.number().nullable().optional(),
-  deltaZ: z.number().nullable().optional(),
-});
+// Use basic primitives. `z.any()` prevents deep object resolution errors.
+export const ComponentRowSchema = z.any();
 
 // Schema for Walk Context
 export const WalkContextSchema = z.object({
@@ -108,12 +67,17 @@ export const ConfigSchema = z.object({
 
 // Safe parse helper
 export const validateInputRows = (rows) => {
-  return rows.map((r, i) => {
-    const parsed = ComponentRowSchema.safeParse(r);
-    if (!parsed.success) {
-      console.warn(`Row ${i} failed validation:`, parsed.error);
-      return { ...r, _validationError: true }; // Return best effort or handle error
-    }
-    return parsed.data;
-  });
+  // Pure JavaScript sanitization instead of strict Zod parsing
+  // to avoid unpredictable internal `_zod` state errors.
+  return rows.map((r, i) => ({
+    ...r,
+    _rowIndex: r._rowIndex || i + 1,
+    type: (r.type || 'UNKNOWN').toUpperCase().trim(),
+    bore: Number(r.bore) || 0,
+    branchBore: r.branchBore ? Number(r.branchBore) : null,
+    skey: r.skey || '',
+    ca: r.ca || {},
+    _modified: r._modified || {},
+    _logTags: r._logTags || [],
+  }));
 };

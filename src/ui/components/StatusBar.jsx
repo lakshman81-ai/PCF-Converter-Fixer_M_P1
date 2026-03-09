@@ -4,6 +4,8 @@ import { runSmartFix } from '../../engine/Orchestrator';
 import { applyFixes } from '../../engine/FixApplicator';
 import { createLogger } from '../../utils/Logger';
 import { exportToExcel, generatePCFText } from '../../utils/ImportExport';
+import { runValidationChecklist } from '../../engine/Validator';
+import { runDataProcessor } from '../../engine/DataProcessor';
 
 export function StatusBar() {
   const { state, dispatch } = useAppContext();
@@ -70,8 +72,24 @@ export function StatusBar() {
         </button>
         <button
           onClick={() => {
-             dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Validator logic executed (mock)." }});
-             alert("Validator executed (mock).");
+            const logger = createLogger();
+            const processedTable = runDataProcessor(state.dataTable, state.config, logger);
+            runValidationChecklist(processedTable, state.config, logger);
+            logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
+
+            logger.getLog().forEach(entry => {
+              if (entry.row && entry.tier) {
+                const row = processedTable.find(r => r._rowIndex === entry.row);
+                if (row && !row.fixingAction) {
+                  row.fixingAction = entry.message;
+                  row.fixingActionTier = entry.tier;
+                  row.fixingActionRuleId = entry.ruleId;
+                }
+              }
+            });
+            dispatch({ type: "SET_DATA_TABLE", payload: processedTable });
+
+            alert("Processing & Validation complete! Check Debug tab and Data Table for results.");
           }}
           disabled={!isDataLoaded}
           className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50"
