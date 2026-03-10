@@ -132,8 +132,18 @@ export async function parsePCF(file, config) {
             }
           }
         }
-        if (currentRow) rawRows.push(currentRow);
-        resolve(validateInputRows(rawRows));
+
+        // Map common properties specifically expected by the table and pipeline
+        const enhancedRows = rawRows.map(r => {
+           if (r.ca) {
+             if (r.ca[97]) r.refNo = r.ca[97].replace("=", "");
+             if (r.ca[98]) r.csvSeqNo = r.ca[98];
+           }
+           return r;
+        });
+
+        if (currentRow) enhancedRows.push(currentRow);
+        resolve(validateInputRows(enhancedRows));
       } catch (err) {
         reject(err);
       }
