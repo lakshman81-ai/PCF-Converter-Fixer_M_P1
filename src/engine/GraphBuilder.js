@@ -90,14 +90,18 @@ export function findNearestEntry(exitCoord, entryIndex, snap, coordKey, toleranc
   const snapped = snap(exitCoord);
   const key = coordKey(snapped);
 
-  const candidates = entryIndex.get(key) || [];
   let best = null;
   let bestDist = tolerance + 1;
-
-  for (const cand of candidates) {
-    if (cand._rowIndex === excludeRowIndex) continue;
-    const d = vec.dist(exitCoord, cand.entryPoint);
-    if (d < bestDist) { bestDist = d; best = cand; }
+  // Use O(N) spatial search as fallback because grid step is 1mm and gap can be 25mm.
+  for (const cands of entryIndex.values()) {
+    for (const cand of cands) {
+      if (cand._rowIndex === excludeRowIndex) continue;
+      const d = vec.dist(exitCoord, cand.entryPoint);
+      if (d <= tolerance && d < bestDist) {
+        bestDist = d;
+        best = cand;
+      }
+    }
   }
 
   if (!best) {
