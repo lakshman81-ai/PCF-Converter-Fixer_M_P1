@@ -16,9 +16,18 @@ export function walkAllChains(graph, config, log) {
     allChains.push(chain);
   }
 
-  const orphans = graph.components.filter(c =>
-    !visited.has(c._rowIndex) && c.type !== "SUPPORT"
-  );
+  const orphans = graph.components.filter(c => {
+    if (c.type === "SUPPORT") return false;
+    if (!visited.has(c._rowIndex)) return true;
+
+    const isTerminal = graph.terminals.includes(c);
+    const hasNext = graph.edges.has(c._rowIndex) || graph.branchEdges.has(c._rowIndex);
+
+    if (isTerminal && !hasNext) {
+        return true;
+    }
+    return false;
+  });
   for (const orphan of orphans) {
     log.push({
       type: "Error", ruleId: "R-TOP-02", tier: 4, row: orphan._rowIndex,

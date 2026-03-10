@@ -12,6 +12,82 @@ export function runValidationChecklist(dataTable, config, logger) {
 
     if (type === "UNKNOWN" || !type) continue;
 
+    // V2: Decimal Consistency
+    if (row.bore && row.ep1 && Number.isInteger(row.bore) && (!Number.isInteger(row.ep1.x) || !Number.isInteger(row.ep1.y) || !Number.isInteger(row.ep1.z))) {
+        logger.push({ type: "Error", ruleId: "V2", tier: 4, row: ri, message: `ERROR [V2]: Decimal consistency violation.` });
+        errorCount++;
+    }
+
+    // V3: Bore Consistency
+    if (type.includes("REDUCER")) {
+        if (row.bore === row.branchBore) {
+            logger.push({ type: "Error", ruleId: "V3", tier: 4, row: ri, message: `ERROR [V3]: REDUCER EP1 bore = EP2 bore. Must differ.` });
+            errorCount++;
+        }
+    } else if (["PIPE", "FLANGE", "VALVE", "BEND", "TEE"].includes(type)) {
+        if (row._rowIndex > 1) {
+            const prevRow = dataTable.find(r => r._rowIndex === row._rowIndex - 1);
+            if (prevRow && !prevRow.type.includes("REDUCER") && prevRow.bore && row.bore && prevRow.bore !== row.bore) {
+                 logger.push({ type: "Error", ruleId: "V3", tier: 4, row: ri, message: `ERROR [V3]: PIPE bore changes without being reducer.` });
+                 errorCount++;
+            }
+        }
+    }
+
+    // V9: TEE CP bore = EP bore
+    if (type === "TEE" && row.cpBore !== undefined && row.cpBore !== row.bore) {
+        logger.push({ type: "Error", ruleId: "V9", tier: 4, row: ri, message: "ERROR [V9]: TEE CP bore != EP bore." });
+        errorCount++;
+    }
+
+    // V12: SUPPORT No CAs
+    if (type === "SUPPORT") {
+        let hasCA = false;
+        for (const k of Object.keys(row.ca || {})) {
+            if (row.ca[k] !== undefined && row.ca[k] !== null && row.ca[k] !== "") hasCA = true;
+        }
+        if (hasCA) {
+            logger.push({ type: "Error", ruleId: "V12", tier: 4, row: ri, message: "ERROR [V12]: SUPPORT must not have CAs." });
+            errorCount++;
+        }
+
+        // V13: SUPPORT bore = 0
+        if (row.bore !== 0 && row.bore !== undefined && row.bore !== null && row.bore !== "") {
+             logger.push({ type: "Error", ruleId: "V13", tier: 4, row: ri, message: "ERROR [V13]: SUPPORT bore must be 0." });
+             errorCount++;
+        }
+
+        // V19: SUPPORT MSG-SQUARE
+        if (row.text && (row.text.includes("LENGTH=") || row.text.includes("MM") || row.text.includes("NORTH") || row.text.includes("SOUTH") || row.text.includes("EAST") || row.text.includes("WEST") || row.text.includes("UP") || row.text.includes("DOWN"))) {
+             logger.push({ type: "Warning", ruleId: "V19", tier: 3, row: ri, message: "WARNING [V19]: SUPPORT MSG-SQ contains invalid tokens." });
+             warnCount++;
+        }
+
+        // V20: GUID Prefix
+        if (row.supportGuid && !row.supportGuid.startsWith("UCI:")) {
+             logger.push({ type: "Error", ruleId: "V20", tier: 4, row: ri, message: "ERROR [V20]: SUPPORT GUID must start with UCI:." });
+             errorCount++;
+        }
+    }
+
+    // V16: CA8 Scope
+    if (row.ca && row.ca[8]) {
+        if (["PIPE", "SUPPORT"].includes(type)) {
+            logger.push({ type: "Warning", ruleId: "V16", tier: 3, row: ri, message: `WARNING [V16]: CA8 populated for ${type}.` });
+            warnCount++;
+        }
+    }
+
+    // V15: Coordinate Continuity
+    if (type !== "SUPPORT" && row._rowIndex > 1) {
+        const prevRow = dataTable.find(r => r._rowIndex === row._rowIndex - 1);
+        if (prevRow && prevRow.ep2 && row.ep1 && !vec.approxEqual(row.ep1, prevRow.ep2, 1.0)) {
+            logger.push({ type: "Warning", ruleId: "V15", tier: 3, row: ri, message: "WARNING [V15]: Coordinate discontinuity." });
+            warnCount++;
+        }
+    }
+
+
     // V1: No (0,0,0) coords
     const checkV1 = (pt, name) => {
       if (pt && vec.isZero(pt)) {

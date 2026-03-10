@@ -10,8 +10,8 @@ export function analyzeGap(gapVector, context, current, next, config, log) {
 
   const gapMag = vec.mag(gapVector);
 
-  if (gapMag < negligible) {
-    if (gapMag > 0.1) {
+  if (gapMag <= negligible) {
+    if (gapMag >= 0.1) {
       return { type: "SNAP", ruleId: "R-GAP-01", tier: 1,
         description: `SNAP [R-GAP-01]: Close ${gapMag.toFixed(2)}mm micro-gap by snapping endpoints.`,
         gapVector, current, next };
