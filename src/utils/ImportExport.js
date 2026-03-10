@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
-import { validateInputRows } from './ZodSchemas';
+import { validateInputRows } from './ZodSchemas.js';
 
 export async function parseExcelOrCSV(file, config) {
   return new Promise((resolve, reject) => {

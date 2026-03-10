@@ -9,7 +9,7 @@ export function runChnRules(element, context, prevElement, elemAxis, elemDir, co
 
   // R-CHN-01: Axis change without bend
   if (context.travelAxis && elemAxis && elemAxis !== context.travelAxis) {
-    if (!["BEND", "TEE"].includes(type)) {
+    if (!["BEND", "TEE", "OLET", "REDUCER-ECCENTRIC"].includes(type)) {
       log.push({ type: "Error", ruleId: "R-CHN-01", tier: 4, row: ri,
         message: `ERROR [R-CHN-01]: Axis changed ${context.travelAxis}→${elemAxis} at ${type}. Missing BEND?` });
     }
