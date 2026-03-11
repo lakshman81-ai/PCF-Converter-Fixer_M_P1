@@ -33,6 +33,56 @@ export function ConfigTab() {
         </button>
       </div>
 
+      <div className="bg-blue-50 p-4 rounded border border-blue-200 shadow-sm mb-6">
+        <h3 className="font-bold text-blue-800 mb-3">Multi-Pass PTE Mode & Line Key Routing</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center space-x-3">
+              <input type="checkbox" checked={localConfig.pteMode?.autoMultiPassMode ?? true} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, autoMultiPassMode: e.target.checked}}))} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <label className="text-sm font-medium text-slate-700">Auto Multi-Pass Mode</label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <input type="checkbox" checked={localConfig.pteMode?.sequentialMode ?? true} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, sequentialMode: e.target.checked}}))} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <label className="text-sm font-medium text-slate-700">Sequential Walk ON</label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <input type="checkbox" checked={localConfig.pteMode?.lineKeyMode ?? true} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, lineKeyMode: e.target.checked}}))} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <label className="text-sm font-medium text-slate-700">Line_Key Constraints ON</label>
+            </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-blue-100 flex items-center space-x-4">
+            <label className="text-sm font-semibold text-slate-700">Line_Key Target Column:</label>
+            <select
+                className="p-1.5 border border-slate-300 rounded text-sm w-48"
+                value={localConfig.pteMode?.lineKeyColumn ?? "pipelineRef"}
+                onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, lineKeyColumn: e.target.value}}))}
+            >
+                <option value="pipelineRef">PIPELINE-REFERENCE</option>
+                <option value="text">MESSAGE-SQUARE Text</option>
+                <option value="ca97">CA97 (RefNo)</option>
+                <option value="ca98">CA98 (SeqNo)</option>
+            </select>
+            <span className="text-xs text-slate-500 italic">Determines the boundary for multi-pass segment logic.</span>
+        </div>
+        <div className="mt-4 pt-4 border-t border-blue-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="flex flex-col">
+              <label className="text-xs text-slate-600 mb-1">Bore Ratio Min</label>
+              <input type="number" step="0.1" value={localConfig.pteMode?.boreRatioMin ?? 0.7} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, boreRatioMin: parseFloat(e.target.value)}}))} className="p-1 border rounded text-sm font-mono w-full" />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-slate-600 mb-1">Bore Ratio Max</label>
+              <input type="number" step="0.1" value={localConfig.pteMode?.boreRatioMax ?? 1.5} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, boreRatioMax: parseFloat(e.target.value)}}))} className="p-1 border rounded text-sm font-mono w-full" />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-slate-600 mb-1">Sweep Radii Min (xNB)</label>
+              <input type="number" step="0.1" value={localConfig.pteMode?.sweepRadiusMinMultiplier ?? 0.2} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, sweepRadiusMinMultiplier: parseFloat(e.target.value)}}))} className="p-1 border rounded text-sm font-mono w-full" />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-slate-600 mb-1">Sweep Radii Max (mm)</label>
+              <input type="number" step="10" value={localConfig.pteMode?.sweepRadiusMax ?? 13000} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, sweepRadiusMax: parseFloat(e.target.value)}}))} className="p-1 border rounded text-sm font-mono w-full" />
+            </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
         {/* Core Geometry Thresholds */}

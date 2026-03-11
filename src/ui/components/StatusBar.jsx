@@ -35,6 +35,17 @@ export function StatusBar() {
   const isPreviewing = state.smartFix.status === "previewing";
   const isRunning = state.smartFix.status === "running";
   const isApplying = state.smartFix.status === "applying";
+  const passNum = state.smartFix.pass || 1;
+  const isSecondPassReady = state.smartFix.status === "applied" && state.config.pteMode?.autoMultiPassMode;
+
+  const handleSecondPass = () => {
+    dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
+    const logger = createLogger();
+    // Simulate second pass triggering by modifying state temporarily or just calling smart fix again with pass 2 context
+    const result = runSmartFix(state.dataTable, { ...state.config, currentPass: 2 }, logger);
+    logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
+    dispatch({ type: "SMART_FIX_COMPLETE", payload: { ...result, pass: 2 } });
+  };
 
   const handleExportExcel = async () => {
     try {
@@ -110,9 +121,18 @@ export function StatusBar() {
         <button
           onClick={handleApplyFixes}
           disabled={!isPreviewing || isApplying}
-          className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded font-medium disabled:opacity-50 transition-colors"
+          className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded font-medium disabled:opacity-50 transition-colors mr-2"
         >
           {isApplying ? "Applying..." : "Apply Fixes ✓"}
+        </button>
+
+        <button
+          onClick={handleSecondPass}
+          disabled={!isSecondPassReady}
+          className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded font-medium disabled:opacity-50 transition-colors"
+          title="Run Second Pass on Non-Pipe components"
+        >
+          🚀 Run Second Pass
         </button>
 
         <span className="text-slate-400 font-mono text-xs">{verString}</span>

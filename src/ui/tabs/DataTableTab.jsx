@@ -21,6 +21,26 @@ export function DataTableTab() {
     );
   }
 
+
+  const handleApprove = (rowIndex, approve) => {
+      const updatedTable = [...state.dataTable];
+      const rowIdx = updatedTable.findIndex(r => r._rowIndex === rowIndex);
+      if (rowIdx > -1) {
+          updatedTable[rowIdx]._fixApproved = approve;
+          dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+      }
+  };
+
+  const handleAutoApproveAll = () => {
+      const updatedTable = state.dataTable.map(r => {
+          if (r.fixingActionTier && r.fixingActionTier <= 2) {
+              return { ...r, _fixApproved: true };
+          }
+          return r;
+      });
+      dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+  };
+
   const renderFixingAction = (row) => {
     if (!row.fixingAction) return <span className="text-slate-400">—</span>;
 
@@ -40,18 +60,34 @@ export function DataTableTab() {
         <span className="font-semibold">{row.fixingActionRuleId}</span>
         <br />
         {row.fixingAction}
+        <div className="mt-2 flex space-x-2">
+            <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm ${row._fixApproved === true ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✓ Approve</button>
+            <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm ${row._fixApproved === false ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✗ Reject</button>
+        </div>
       </div>
     );
   };
 
   const fmtCoord = (c) => c ? `${c.x?.toFixed(1)}, ${c.y?.toFixed(1)}, ${c.z?.toFixed(1)}` : '—';
   const getCellClass = (row, field) => {
+    if (row._modified && row._modified[field]) {
+        // Color coding based on pass
+        if (row._passApplied === 1) return 'bg-cyan-50 text-cyan-800 font-semibold';
+        if (row._passApplied === 2) return 'bg-purple-50 text-purple-800 font-semibold';
+        return 'bg-cyan-50 text-cyan-800 font-semibold';
+    }
     if (row._modified && row._modified[field]) return 'bg-cyan-50 text-cyan-800 font-semibold';
     return 'text-slate-600';
   };
 
   return (
-    <div className="overflow-auto h-[calc(100vh-14rem)] border rounded shadow-sm bg-white relative">
+    <>
+      <div className="mb-2 flex justify-end">
+      <button onClick={handleAutoApproveAll} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-sm font-medium border border-indigo-200 shadow-sm transition-colors">
+          Auto Approve First Pass (&lt; 25mm)
+      </button>
+  </div>
+  <div className="overflow-auto h-[calc(100vh-14rem)] border rounded shadow-sm bg-white relative">
       <table className="min-w-max divide-y divide-slate-200 text-sm">
         <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm whitespace-nowrap">
           <tr>
@@ -148,7 +184,8 @@ export function DataTableTab() {
             </tr>
           ))}
         </tbody>
-      </table>
+          </table>
     </div>
+    </>
   );
 }

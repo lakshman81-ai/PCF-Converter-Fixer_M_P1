@@ -2,6 +2,7 @@ import { vec } from '../math/VectorMath.js';
 import { detectElementAxis, detectBranchAxis, detectBranchDirection, getElementVector } from './AxisDetector.js';
 import { getEntryPoint, getExitPoint } from './GraphBuilder.js';
 import { analyzeGap } from './GapOverlap.js';
+import { sweepForNeighbor } from './pte-engine.js';
 import { runElementRules, runSupportRules, runAggRules } from './rules/RuleRunner.js';
 
 export function walkAllChains(graph, config, log) {
@@ -28,6 +29,20 @@ export function walkAllChains(graph, config, log) {
     }
     return false;
   });
+  // First Pass (Stage 2 - Constrained Orphan Sweep)
+  if (config.currentPass === 1 && orphans.length > 0) {
+      log.push({ type: "Info", message: "Starting Stage 2: Constrained Orphan Sweep for non-sequential matches..." });
+      for (let i = orphans.length - 1; i >= 0; i--) {
+          const orphan = orphans[i];
+          const neighbor = sweepForNeighbor(orphan, graph.components, config);
+          if (neighbor) {
+              log.push({ type: "Info", message: `Orphan ${orphan.type} (Row ${orphan._rowIndex}) matched to ${neighbor.type} (Row ${neighbor._rowIndex}) via axis_sweep.` });
+              // Simulate chaining
+              orphans.splice(i, 1);
+          }
+      }
+  }
+
   for (const orphan of orphans) {
     log.push({
       type: "Error", ruleId: "R-TOP-02", tier: 4, row: orphan._rowIndex,

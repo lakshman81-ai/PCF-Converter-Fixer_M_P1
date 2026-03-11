@@ -1,9 +1,13 @@
 import { vec } from '../math/VectorMath.js';
 
+import { runPTEEngine } from './pte-engine.js';
+
 export function runDataProcessor(dataTable, config, logger) {
   logger.push({ type: "Info", message: "═══ RUNNING PRE-VALIDATION DATA PROCESSING (STEPS 1-11) ═══" });
 
-  const updatedTable = [...dataTable];
+  // Run PTE Engine Pre-Flight
+  const pteEnrichedTable = runPTEEngine(dataTable, config, logger);
+  const updatedTable = [...pteEnrichedTable];
   let seq = 1;
   let bendPtr = 0, rigidPtr = 0, intPtr = 0;
   const stdMm = new Set(config.standardMmBores || [15,20,25,32,40,50,65,80,90,100,125,150,200,250,300,350,400,450,500,600,750,900,1050,1200]);

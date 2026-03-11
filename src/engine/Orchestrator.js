@@ -3,10 +3,16 @@ import { walkAllChains } from './Walker.js';
 import { populateFixingActions } from './ActionDescriptor.js';
 
 export function runSmartFix(dataTable, config, logger) {
+  const currentPass = config.currentPass || 1;
+  logger.push({ type: "Info", message: `═══ SMART FIX: PASS ${currentPass} ═══` });
+
   logger.push({ type: "Info", message: "═══ SMART FIX: Starting chain walker ═══" });
 
   logger.push({ type: "Info", message: "Step 4A: Building connectivity graph..." });
   const graph = buildConnectivityGraph(dataTable, config);
+  // Auto-Approval Tiers:
+  // < 25mm = Auto Approved (Tier 2/1)
+  // > 20000mm = Auto Rejected (Tier 4)
   logger.push({ type: "Info",
     message: `Graph: ${graph.components.length} components, ${graph.terminals.length} terminals, ${graph.edges.size} connections.` });
 

@@ -2,6 +2,40 @@ import { vec } from '../math/VectorMath.js';
 import { getExitPoint, getEntryPoint } from './GraphBuilder.js';
 
 export function analyzeGap(gapVector, context, current, next, config, log) {
+  const currentPass = config.currentPass || 1;
+  const isTargetPipe = (current.type === "PIPE" || next.type === "PIPE");
+  const isTargetFitting = (current.type !== "PIPE" && next.type !== "PIPE");
+
+  if (currentPass === 1 && !isTargetPipe) {
+      return null;
+  }
+
+  if (currentPass === 2 && isTargetPipe) {
+      return null; // Skip pipes on 2nd pass
+  }
+
+  if (currentPass === 1 && !isTargetPipe && !isTargetFitting) {
+      // First pass targets PIPE manipulations (at least one end is pipe usually, or we only stretch pipes)
+  }
+
+  // Bore constraint (0.7 to 1.5)
+  if (current.bore && next.bore) {
+      const ratio = current.bore / next.bore;
+      if (ratio < 0.7 || ratio > 1.5) {
+          return { type: "ERROR", ruleId: "R-BORE-CONSCIOUS", tier: 4,
+            description: `ERROR: Bore ratio ${ratio.toFixed(2)} is outside allowed 0.7-1.5 range. Disallowing automated fix.`,
+            current, next };
+      }
+  }
+
+  // Line_Key constraint
+  if (config.pteMode?.lineKeyMode && current._lineKey && next._lineKey) {
+      if (current._lineKey !== next._lineKey) {
+          return { type: "ERROR", ruleId: "R-LINEKEY", tier: 4,
+            description: `ERROR: Line_Key mismatch (${current._lineKey} vs ${next._lineKey}). Crossing line boundary.`,
+            current, next };
+      }
+  }
   const cfg = config.smartFixer || {};
   const negligible = Number(cfg.negligibleGap ?? 1.0);
   const autoFillMax = Number(cfg.autoFillMaxGap ?? 25.0);
@@ -35,6 +69,12 @@ export function analyzeGap(gapVector, context, current, next, config, log) {
   if (axes.length === 1 && axes[0].axis === context.travelAxis) {
     const gapAmt = Math.abs(alongDelta);
     const dir = directionLabel(context.travelAxis, context.travelDirection);
+
+    if (gapAmt > 20000) {
+      return { type: "ERROR", ruleId: "R-MAX-SEGMENT", tier: 4,
+        description: `ERROR [R-MAX-SEGMENT]: ${gapAmt.toFixed(1)}mm gap exceeds 20000mm absolute maximum threshold. Auto Rejected.`,
+        current, next };
+    }
 
     if (gapAmt <= autoFillMax) {
       return { type: "INSERT", ruleId: "R-GAP-02", tier: 2,

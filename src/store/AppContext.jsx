@@ -5,6 +5,16 @@ const initialState = {
   config: {
     decimals: 4,
     angleFormat: "degrees",
+    pteMode: {
+      autoMultiPassMode: true,
+      sequentialMode: true,
+      lineKeyMode: true,
+      lineKeyColumn: "pipelineRef",
+      boreRatioMin: 0.7,
+      boreRatioMax: 1.5,
+      sweepRadiusMinMultiplier: 0.2,
+      sweepRadiusMax: 13000,
+    },
     smartFixer: {
       connectionTolerance: 25.0,
       gridSnapResolution: 1.0,
@@ -41,6 +51,7 @@ const initialState = {
   log: [],
   smartFix: {
     status: "idle",
+    pass: 1,
     graph: null,
     chains: [],
     proposedFixes: [],

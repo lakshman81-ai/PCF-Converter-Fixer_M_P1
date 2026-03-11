@@ -10,7 +10,7 @@ export function applyFixes(dataTable, chains, config, log) {
   for (const chain of chains) {
     for (const link of chain) {
       const elem = link.element;
-      if (elem._proposedFix?.type === "DELETE" && elem._proposedFix.tier <= 2) {
+      if (elem._proposedFix?.type === "DELETE" && elem._proposedFix.tier <= 2 && elem._fixApproved === true) {
         deleteRows.add(elem._rowIndex);
         applied.push({ ruleId: elem._proposedFix.ruleId, row: elem._rowIndex, action: "DELETE" });
         log.push({ type: "Applied", ruleId: elem._proposedFix.ruleId, row: elem._rowIndex,
@@ -22,10 +22,10 @@ export function applyFixes(dataTable, chains, config, log) {
   for (const chain of chains) {
     for (const link of chain) {
       const elem = link.element;
-      if (elem._proposedFix?.type === "SNAP_AXIS" && elem._proposedFix.tier <= 2) {
+      if (elem._proposedFix?.type === "SNAP_AXIS" && elem._proposedFix.tier <= 2 && elem._fixApproved === true) {
         const axis = elem._proposedFix.dominantAxis;
         snapToSingleAxis(elem, axis);
-        markModified(elem, "ep1", "SmartFix:R-GEO-03");
+        markModified(elem, "ep1", "SmartFix:R-GEO-03"); elem._passApplied = config.currentPass || 1;
         markModified(elem, "ep2", "SmartFix:R-GEO-03");
         applied.push({ ruleId: "R-GEO-03", row: elem._rowIndex, action: "SNAP_AXIS" });
       }
@@ -35,9 +35,9 @@ export function applyFixes(dataTable, chains, config, log) {
   for (const chain of chains) {
     for (const link of chain) {
       if (!link.fixAction) continue;
-      if (link.fixAction.type === "SNAP" && link.fixAction.tier <= 2) {
+      if (link.fixAction.type === "SNAP" && link.fixAction.tier <= 2 && link.element._fixApproved === true) {
         snapEndpoints(link.element, link.nextElement);
-        markModified(link.element, "ep2", `SmartFix:${link.fixAction.ruleId}`);
+        markModified(link.element, "ep2", `SmartFix:${link.fixAction.ruleId}`); link.element._passApplied = config.currentPass || 1;
         markModified(link.nextElement, "ep1", `SmartFix:${link.fixAction.ruleId}`);
         applied.push({ ruleId: link.fixAction.ruleId, row: link.element._rowIndex, action: "SNAP" });
       }
@@ -47,11 +47,11 @@ export function applyFixes(dataTable, chains, config, log) {
   for (const chain of chains) {
     for (const link of chain) {
       if (!link.fixAction) continue;
-      if (link.fixAction.type === "TRIM" && link.fixAction.tier <= 2) {
+      if (link.fixAction.type === "TRIM" && link.fixAction.tier <= 2 && link.element._fixApproved === true) {
         const target = link.fixAction.trimTarget === "current" ? link.element : link.nextElement;
         if ((target.type || "").toUpperCase() === "PIPE") {
           trimPipe(target, link.fixAction.trimAmount, link.travelAxis, link.travelDirection, link.fixAction.trimTarget);
-          markModified(target, link.fixAction.trimTarget === "current" ? "ep2" : "ep1", `SmartFix:${link.fixAction.ruleId}`);
+          markModified(target, link.fixAction.trimTarget === "current" ? "ep2" : "ep1", `SmartFix:${link.fixAction.ruleId}`); target._passApplied = config.currentPass || 1;
           applied.push({ ruleId: link.fixAction.ruleId, row: target._rowIndex, action: "TRIM" });
           log.push({ type: "Applied", ruleId: link.fixAction.ruleId, row: target._rowIndex,
             message: `APPLIED: Trimmed ${target.type} by ${link.fixAction.trimAmount.toFixed(1)}mm.` });
@@ -71,7 +71,7 @@ export function applyFixes(dataTable, chains, config, log) {
   for (const chain of chains) {
     for (const link of chain) {
       if (!link.fixAction) continue;
-      if (link.fixAction.type === "INSERT" && link.fixAction.tier <= 2) {
+      if (link.fixAction.type === "INSERT" && link.fixAction.tier <= 2 && link.element._fixApproved === true) {
         const fillerPipe = createFillerPipe(link, config);
         newRows.push({ insertAfterRow: link.element._rowIndex, pipe: fillerPipe });
         applied.push({ ruleId: link.fixAction.ruleId, row: link.element._rowIndex, action: "INSERT" });
@@ -138,6 +138,7 @@ function createFillerPipe(chainLink, config) {
   return {
     _rowIndex: -1,
     _modified: { ep1: "SmartFix:GapFill", ep2: "SmartFix:GapFill", type: "SmartFix:GapFill" },
+    _passApplied: config.currentPass || 1,
     _logTags: ["Calculated"],
     csvSeqNo: `${upstream.csvSeqNo || 0}.GF`,
     type: "PIPE",

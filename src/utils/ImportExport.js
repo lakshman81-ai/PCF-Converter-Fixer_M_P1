@@ -234,6 +234,14 @@ export function generatePCFText(dataTable, config) {
       if (row.skey) {
         lines.push(`    <SKEY>  ${row.skey}`);
       }
+
+      if (row.ca) {
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 97, 98].forEach(n => {
+          if (row.ca[n] !== undefined && row.ca[n] !== null && row.ca[n] !== "") {
+            lines.push(`    COMPONENT-ATTRIBUTE${n}    ${row.ca[n]}`);
+          }
+        });
+      }
     }
     lines.push("");
   });
