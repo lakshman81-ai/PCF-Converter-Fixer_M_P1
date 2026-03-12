@@ -17,6 +17,28 @@ export function StatusBar() {
   const setZustandData = useStore(state => state.setDataTable);
   const setZustandProposals = useStore(state => state.setProposals);
 
+  React.useEffect(() => {
+    const handleSync = (e) => {
+        const { rowIndex, status } = e.detail;
+        let updatedTable = state.dataTable.map(r =>
+            r._rowIndex === rowIndex ? { ...r, _fixApproved: status } : r
+        );
+
+        // If approved via 3D Canvas, immediately apply fixes for that row
+        if (status === true && state.smartFix.chains) {
+            const logger = createLogger();
+            // Re-run applicator purely for approved rows
+            const result = applyFixes(updatedTable, state.smartFix.chains, state.config, logger);
+            updatedTable = result.updatedTable;
+            setZustandData(updatedTable); // Ensure 3D updates immediately
+        }
+
+        dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+    };
+    window.addEventListener('zustand-fix-status-changed', handleSync);
+    return () => window.removeEventListener('zustand-fix-status-changed', handleSync);
+  }, [state.dataTable, state.smartFix.chains, state.config, dispatch, setZustandData]);
+
   const handleSmartFix = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
     const logger = createLogger();
@@ -31,10 +53,18 @@ export function StatusBar() {
   const handleApplyFixes = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "applying" });
     const logger = createLogger();
-    const result = applyFixes(state.dataTable, state.smartFix.chains, state.config, logger);
+
+    // For Group 2 / proposals (from PcfTopologyGraph2), applying fixes means mutating the geometries that were approved.
+    let tableToProcess = state.dataTable;
+    if (useStore.getState().proposals.length > 0) {
+        tableToProcess = applyApprovedMutations(tableToProcess, useStore.getState().proposals, logger);
+    }
+
+    const result = applyFixes(tableToProcess, state.smartFix.chains, state.config, logger);
 
     logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
 
+    setZustandData(result.updatedTable);
     dispatch({ type: "FIXES_APPLIED", payload: result });
   };
 

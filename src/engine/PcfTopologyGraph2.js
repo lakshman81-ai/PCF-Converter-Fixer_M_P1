@@ -96,16 +96,21 @@ export function applyApprovedMutations(dataTable, proposals, logger) {
     const newPipes = [];
 
     for (const prop of proposals) {
-        // Mock checking _fixApproved, but let's assume auto-approved for test
         const A = updatedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
         const B = updatedTable.find(r => r._rowIndex === prop.elementB._rowIndex);
         if (!A || !B) continue;
 
+        // If it's not approved, just attach the action for the UI but do not apply the physical geometry yet
+        if (prop._fixApproved !== true) {
+             A.fixingAction = prop.description;
+             A.fixingActionTier = prop.dist < 25 ? 2 : 3;
+             continue;
+        }
+
         if (prop.fixType === 'GAP_STRETCH_PIPE') {
             if (A.type === 'PIPE' && A.ep2) {
                 A.ep2 = { ...getEntryPoint(B) }; // Stretch A to meet B
-                A.fixingAction = prop.description;
-                A.fixingActionTier = 1;
+                A.fixingAction = null;
             }
         } else if (prop.fixType === 'GAP_SNAP_IMMUTABLE') {
             if (['FLANGE','BEND','TEE','VALVE'].includes(B.type)) {
@@ -115,8 +120,7 @@ export function applyApprovedMutations(dataTable, proposals, logger) {
                 if (B.ep2) B.ep2 = vec.add(B.ep2, trans);
                 if (B.cp) B.cp = vec.add(B.cp, trans);
                 if (B.bp) B.bp = vec.add(B.bp, trans);
-                B.fixingAction = prop.description;
-                B.fixingActionTier = 2;
+                B.fixingAction = null;
             }
         } else if (prop.fixType === 'GAP_FILL') {
             // Inject pipe
@@ -128,8 +132,7 @@ export function applyApprovedMutations(dataTable, proposals, logger) {
                 ep1: { ...getExitPoint(A) },
                 ep2: { ...getEntryPoint(B) },
                 ca: { ...A.ca, 8: null },
-                fixingAction: prop.description,
-                fixingActionTier: 2
+                fixingAction: null,
             };
             newPipes.push({ afterRow: A._rowIndex, pipe: filler });
         }

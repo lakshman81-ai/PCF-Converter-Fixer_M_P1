@@ -10,6 +10,29 @@ export const useStore = create((set, get) => ({
   // Proposals emitted from the SmartFixer
   proposals: [],
 
+  // Method to approve/reject a proposal directly from Canvas
+  setProposalStatus: (rowIndex, status) => set((state) => {
+      // Find proposal matching the row and update its status
+      const updatedProposals = state.proposals.map(prop => {
+          if (prop.elementA?._rowIndex === rowIndex || prop.elementB?._rowIndex === rowIndex) {
+              return { ...prop, _fixApproved: status };
+          }
+          return prop;
+      });
+      // Also sync back to dataTable so it is reflected globally when re-synced
+      const updatedTable = state.dataTable.map(r =>
+          r._rowIndex === rowIndex ? { ...r, _fixApproved: status } : r
+      );
+
+      // Need a way to tell the app context to sync from zustand.
+      // We will dispatch a custom window event that StatusBar/AppContext can listen to.
+      window.dispatchEvent(new CustomEvent('zustand-fix-status-changed', {
+          detail: { rowIndex, status }
+      }));
+
+      return { proposals: updatedProposals, dataTable: updatedTable };
+  }),
+
   // Highlighting/Interaction state for the canvas
   selectedElementId: null,
   hoveredElementId: null,

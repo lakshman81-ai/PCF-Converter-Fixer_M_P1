@@ -65,8 +65,9 @@ const InstancedPipes = () => {
 const ProposalOverlay = ({ proposal }) => {
   const [clicked, setClicked] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const setProposalStatus = useStore(state => state.setProposalStatus);
 
-  const { elementA, elementB, description, vector } = proposal;
+  const { elementA, elementB, description, vector, _fixApproved } = proposal;
 
   if (!elementA.ep2 || !elementB.ep1) return null;
 
@@ -106,23 +107,38 @@ const ProposalOverlay = ({ proposal }) => {
       {/* Active Html Overlay (expensive DOM) */}
       {clicked && (
         <Html position={[midX, midY, midZ]} center zIndexRange={[100, 0]}>
-          <div className="bg-slate-800 p-3 rounded-lg shadow-xl text-xs w-64 border border-red-500/50 backdrop-blur-md">
-            <p className="font-bold text-red-400 mb-1 border-b border-slate-700 pb-1">Topology Anomaly</p>
-            <p className="mb-3 text-slate-300 leading-relaxed">{description}</p>
+          <div className={`p-3 rounded-lg shadow-xl text-xs w-64 border backdrop-blur-md ${
+             _fixApproved === true ? 'bg-green-900 border-green-500/50' :
+             _fixApproved === false ? 'bg-slate-900 border-slate-500/50' :
+             'bg-slate-800 border-red-500/50'
+          }`}>
+            <p className={`font-bold mb-1 border-b pb-1 ${
+                _fixApproved === true ? 'text-green-400 border-green-700' :
+                _fixApproved === false ? 'text-slate-400 border-slate-700' :
+                'text-red-400 border-slate-700'
+            }`}>
+                {_fixApproved === true ? 'Proposal Approved' : _fixApproved === false ? 'Proposal Rejected' : 'Topology Anomaly'}
+            </p>
+            <p className={`mb-3 leading-relaxed ${_fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{description}</p>
             <div className="flex gap-2">
               <button
-                className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1.5 rounded w-full transition-colors"
-                onClick={() => alert("Action dispatched via Zustand")}
+                className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
+                    _fixApproved === true ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-700 hover:bg-green-600'
+                }`}
+                onClick={(e) => { e.stopPropagation(); setProposalStatus(elementA._rowIndex, true); }}
               >
-                Auto-Fix
+                ✓ Approve
               </button>
               <button
-                className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 py-1.5 rounded w-full transition-colors"
-                onClick={() => setClicked(false)}
+                className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
+                    _fixApproved === false ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-700 hover:bg-red-600'
+                }`}
+                onClick={(e) => { e.stopPropagation(); setProposalStatus(elementA._rowIndex, false); }}
               >
-                Dismiss
+                ✗ Reject
               </button>
             </div>
+            <button className="mt-2 text-slate-400 hover:text-slate-200 text-[10px] w-full text-right" onClick={(e) => { e.stopPropagation(); setClicked(false); }}>Close</button>
           </div>
         </Html>
       )}
@@ -162,8 +178,18 @@ export function CanvasTab() {
 
         {/* World Reference */}
         <gridHelper args={[20000, 20, '#1e293b', '#0f172a']} position={[0, -1000, 0]} />
-        <axesHelper args={[5000]} />
       </Canvas>
+
+      {/* Small Axis Reference Overlay */}
+      <div className="absolute bottom-4 right-4 w-24 h-24 pointer-events-none">
+        <Canvas orthographic camera={{ position: [20, 20, 20], zoom: 5 }}>
+            <ambientLight intensity={1} />
+            <axesHelper args={[10]} />
+            <Text position={[12, 0, 0]} color="red" fontSize={4}>X</Text>
+            <Text position={[0, 12, 0]} color="green" fontSize={4}>Y</Text>
+            <Text position={[0, 0, 12]} color="blue" fontSize={4}>Z</Text>
+        </Canvas>
+      </div>
     </div>
   );
 }

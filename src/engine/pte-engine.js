@@ -59,7 +59,7 @@ export function sweepForNeighbor(element, kdTreeOrArray, config) {
             const ratioMin = config.pteMode?.boreRatioMin ?? 0.7;
             const ratioMax = config.pteMode?.boreRatioMax ?? 1.5;
 
-            if (element._pteMode === 'D(a)' && element._lineKey !== bestMatch._lineKey) return null;
+            if (element._pteMode === 'D(a)' && element._lineKey && bestMatch._lineKey && element._lineKey !== bestMatch._lineKey) return null;
             if (element.bore && bestMatch.bore) {
                 const ratio = element.bore / bestMatch.bore;
                 if (ratio < ratioMin || ratio > ratioMax) return null;
@@ -80,8 +80,8 @@ export function sweepForNeighbor(element, kdTreeOrArray, config) {
     for (const other of dataTable) {
         if (other._rowIndex === element._rowIndex) continue;
 
-        // Line_Key constraint
-        if (element._pteMode === 'D(a)' && element._lineKey !== other._lineKey) continue;
+        // Line_Key constraint (relax if missing on either side)
+        if (element._pteMode === 'D(a)' && element._lineKey && other._lineKey && element._lineKey !== other._lineKey) continue;
 
         // Bore ratio constraint
         if (element.bore && other.bore) {

@@ -46,7 +46,7 @@ export function ConfigTab() {
             </div>
             <div className="flex items-center space-x-3">
               <input type="checkbox" checked={localConfig.pteMode?.lineKeyMode ?? true} onChange={(e) => setLocalConfig(p => ({...p, pteMode: {...p.pteMode, lineKeyMode: e.target.checked}}))} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-              <label className="text-sm font-medium text-slate-700">Line_Key Constraints ON</label>
+              <label className="text-sm font-medium text-slate-700">Line_Key Constraints (if avialable) ON</label>
             </div>
         </div>
         <div className="mt-4 pt-4 border-t border-blue-100 flex items-center space-x-4">

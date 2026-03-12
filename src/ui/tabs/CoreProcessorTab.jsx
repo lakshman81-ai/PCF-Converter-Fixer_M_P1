@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../store/AppContext';
 
-export function DebugTab() {
+export function CoreProcessorTab() {
   const { state } = useAppContext();
   const { log, smartFix } = state;
   const [stageFilter, setStageFilter] = useState('ALL');

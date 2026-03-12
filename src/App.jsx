@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Header } from './ui/components/Header';
 import { StatusBar } from './ui/components/StatusBar';
 import { DataTableTab } from './ui/tabs/DataTableTab';
-import { DebugTab } from './ui/tabs/DebugTab';
+import { CoreProcessorTab } from './ui/tabs/CoreProcessorTab';
 import { ConfigTab } from './ui/tabs/ConfigTab';
 import { OutputTab } from './ui/tabs/OutputTab';
 import { CanvasTab } from './ui/tabs/CanvasTab';
@@ -52,6 +52,12 @@ function MainApp() {
             Data Table
           </button>
           <button
+            onClick={() => setActiveTab('core')}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'core' ? 'border-blue-600 text-blue-700 bg-white rounded-t' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+          >
+            Core processor
+          </button>
+          <button
             onClick={() => setActiveTab('canvas')}
             className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors flex items-center gap-1 ${activeTab === 'canvas' ? 'border-blue-600 text-blue-700 bg-white rounded-t' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
           >
@@ -65,12 +71,6 @@ function MainApp() {
             Config
           </button>
           <button
-            onClick={() => setActiveTab('debug')}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'debug' ? 'border-blue-600 text-blue-700 bg-white rounded-t' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
-          >
-            Debug
-          </button>
-          <button
             onClick={() => setActiveTab('output')}
             className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'output' ? 'border-blue-600 text-blue-700 bg-white rounded-t' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
           >
@@ -81,9 +81,9 @@ function MainApp() {
         {/* Tab Content */}
         <div className="bg-white rounded shadow-sm min-h-[500px] border border-slate-200">
           {activeTab === 'data' && <DataTableTab />}
+          {activeTab === 'core' && <div className="p-4"><CoreProcessorTab /></div>}
           {activeTab === 'canvas' && <div className="p-2"><CanvasTab /></div>}
           {activeTab === 'config' && <ConfigTab />}
-          {activeTab === 'debug' && <div className="p-4"><DebugTab /></div>}
           {activeTab === 'output' && <OutputTab />}
         </div>
       </main>

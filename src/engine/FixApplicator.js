@@ -95,9 +95,11 @@ export function applyFixes(dataTable, chains, config, log) {
   updatedTable.forEach((row, i) => { row._rowIndex = i + 1; });
 
   updatedTable.forEach(row => {
-    row.fixingAction = null;
-    row.fixingActionTier = null;
-    row.fixingActionRuleId = null;
+    if (row._fixApproved === true) {
+      row.fixingAction = null;
+      row.fixingActionTier = null;
+      row.fixingActionRuleId = null;
+    }
   });
 
   return { updatedTable, applied, deleteCount: deleteRows.size, insertCount: newRows.length };
