@@ -4,6 +4,7 @@ import { useAppContext } from '../../store/AppContext';
 export function DataTableTab() {
   const { state, dispatch } = useAppContext();
   const { dataTable } = state;
+  const [filterAction, setFilterAction] = React.useState('ALL');
 
   const handleApprove = (rowIndex, approve) => {
       const updatedTable = [...state.dataTable];
@@ -125,8 +126,6 @@ export function DataTableTab() {
      if (filterAction === 'REJECTED') return dataTable.filter(r => r._fixApproved === false);
      return dataTable;
   }, [dataTable, filterAction]);
-
-  const [filterAction, setFilterAction] = React.useState('ALL');
 
   if (!dataTable || dataTable.length === 0) {
     return (
