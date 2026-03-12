@@ -49,10 +49,24 @@ const InstancedPipes = () => {
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [pipes, dummy]);
 
+  const handlePointerDown = (e) => {
+      e.stopPropagation();
+      const instanceId = e.instanceId;
+      if (instanceId !== undefined && pipes[instanceId]) {
+          const pipe = pipes[instanceId];
+          if (pipe.ep1 && pipe.ep2) {
+              const midX = (pipe.ep1.x + pipe.ep2.x) / 2;
+              const midY = (pipe.ep1.y + pipe.ep2.y) / 2;
+              const midZ = (pipe.ep1.z + pipe.ep2.z) / 2;
+              window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: midX, y: midY, z: midZ, id: pipe.text } }));
+          }
+      }
+  };
+
   if (pipes.length === 0) return null;
 
   return (
-    <instancedMesh ref={meshRef} args={[null, null, pipes.length]}>
+    <instancedMesh ref={meshRef} args={[null, null, pipes.length]} onPointerDown={handlePointerDown}>
       <cylinderGeometry args={[1, 1, 1, 16]} />
       <meshStandardMaterial color="#3b82f6" />
     </instancedMesh>
@@ -156,6 +170,13 @@ const ControlsAutoCenter = () => {
 
     // Add custom event listener for auto-center
     useEffect(() => {
+        const handleFocus = (e) => {
+            if (!controlsRef.current) return;
+            const { x, y, z } = e.detail;
+            controlsRef.current.target.set(x, y, z);
+            controlsRef.current.update();
+        };
+
         const handleCenter = () => {
             const pipes = getPipes();
             if (pipes.length === 0 || !controlsRef.current) return;
@@ -190,7 +211,11 @@ const ControlsAutoCenter = () => {
         };
 
         window.addEventListener('canvas-auto-center', handleCenter);
-        return () => window.removeEventListener('canvas-auto-center', handleCenter);
+        window.addEventListener('canvas-focus-point', handleFocus);
+        return () => {
+            window.removeEventListener('canvas-auto-center', handleCenter);
+            window.removeEventListener('canvas-focus-point', handleFocus);
+        };
     }, [getPipes]);
 
     return <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.1} />;

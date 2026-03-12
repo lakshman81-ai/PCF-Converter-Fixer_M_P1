@@ -35,24 +35,43 @@ export function DataTableTab() {
   };
 
   const handleCalculateMissingGeometry = () => {
-       // This handles very basic recalculations
-       const updatedTable = state.dataTable.map(row => {
+       const updatedTable = state.dataTable.map((row, index, arr) => {
             const r = { ...row };
-            if (!r.bore && r.type === "PIPE" && r.ep1 && r.ep2) {
-                // Approximate 100 bore as fallback
+            // Auto inherit bore from previous row if missing
+            if ((!r.bore || r.bore === "") && index > 0) {
+                 const prev = arr[index - 1];
+                 if (prev.bore) {
+                     r.bore = prev.bore;
+                     r._modified = r._modified || {};
+                     r._modified.bore = "Inherited";
+                 }
+            }
+            // Missing Bore fallback for PIPES
+            if ((!r.bore || r.bore === "") && r.type === "PIPE" && r.ep1 && r.ep2) {
                 r.bore = 100;
                 r._modified = r._modified || {};
-                r._modified.bore = "Calculated Geometry";
+                r._modified.bore = "Fallback";
             }
-            if (r.type === "TEE" && !r.cp && r.ep1 && r.ep2) {
+            // Missing CP for TEES
+            if (r.type === "TEE" && (!r.cp || (r.cp.x === 0 && r.cp.y === 0 && r.cp.z === 0)) && r.ep1 && r.ep2) {
                 r.cp = {
                     x: (r.ep1.x + r.ep2.x) / 2,
                     y: (r.ep1.y + r.ep2.y) / 2,
                     z: (r.ep1.z + r.ep2.z) / 2
                 };
                 r._modified = r._modified || {};
-                r._modified.cp = "Calculated Geometry";
+                r._modified.cp = "Calculated Midpoint";
             }
+
+            // Calculate Vector Deltas (Axis) if missing
+            if (r.ep1 && r.ep2 && (!r.deltaX || !r.deltaY || !r.deltaZ)) {
+                r.deltaX = r.ep2.x - r.ep1.x;
+                r.deltaY = r.ep2.y - r.ep1.y;
+                r.deltaZ = r.ep2.z - r.ep1.z;
+                r._modified = r._modified || {};
+                r._modified.deltaX = "Calc";
+            }
+
             return r;
        });
        dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
@@ -136,10 +155,18 @@ export function DataTableTab() {
              {validationMsg}
         </div>
         {actionMsg && (
-            <div className={`mt-1 pl-2 border-l-2 ${row._passApplied > 0 ? 'border-green-400 text-green-800' : 'border-amber-400 text-amber-800'}`}>
-                 <span className="font-bold mr-1">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
-                 {actionMsg}
-            </div>
+            <>
+                <div className={`mt-1 pl-2 border-l-2 ${row._passApplied > 0 ? 'border-green-400 text-green-800' : 'border-amber-400 text-amber-800'}`}>
+                     <span className="font-bold mr-1">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
+                     <span className={row._fixApproved === false ? "line-through opacity-70" : ""}>{actionMsg}</span>
+                </div>
+                {row._passApplied !== 1 && row._passApplied !== 2 && (
+                    <div className="mt-2 flex space-x-2">
+                        <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✓ Approve</button>
+                        <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-500 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✗ Reject</button>
+                    </div>
+                )}
+            </>
         )}
       </div>
     );
