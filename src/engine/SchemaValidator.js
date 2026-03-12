@@ -1,19 +1,27 @@
 import { z } from 'zod';
 
+// Soft Coercion to handle empty strings "" which z.coerce.number() fails on
+const softNumber = z.union([
+    z.number(),
+    z.string().transform(v => (v.trim() === '' ? undefined : Number(v))).pipe(z.number().optional()),
+    z.undefined(),
+    z.null()
+]);
+
 // Strict Archetypal Casting for vectors
 const VectorSchema = z.object({
-  x: z.coerce.number().default(0),
-  y: z.coerce.number().default(0),
-  z: z.coerce.number().default(0),
+  x: softNumber,
+  y: softNumber,
+  z: softNumber,
 });
 
 // Primary validation schema for PCF rows
 const PcfElementSchema = z.object({
   _rowIndex: z.number().int(),
   type: z.string().transform((str) => str.toUpperCase()),
-  bore: z.coerce.number().optional().nullable(),
-  branchBore: z.coerce.number().optional().nullable(),
-  cpBore: z.coerce.number().optional().nullable(),
+  bore: softNumber,
+  branchBore: softNumber,
+  cpBore: softNumber,
   ep1: VectorSchema.optional().nullable(),
   ep2: VectorSchema.optional().nullable(),
   cp: VectorSchema.optional().nullable(),
