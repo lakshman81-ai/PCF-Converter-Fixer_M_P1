@@ -1,25 +1,26 @@
 # Architecture Proposals
 
-## 1. Memory & Performance: O(N^2) Optimization
+## 1. Memory & Performance: O(N²) Optimization & The Spatial Search Dilemma
 
 **Problem:**
-Currently, spatial searches in `GraphBuilder.js` (`findNearestEntry`) and `pte-engine.js` (`sweepForNeighbor`) operate in an O(N) linear sweep for every element, resulting in an O(N^2) time complexity. For PCF files exceeding 10,000 rows, this will introduce significant UI blocking and runtime lag.
+Currently, spatial searches in `GraphBuilder.js` (`findNearestEntry`) and `pte-engine.js` (`sweepForNeighbor`) operate in an O(N) linear sweep for every element, resulting in an O(N²) time complexity. For PCF files exceeding 10,000 rows, this introduces significant UI freezing and runtime lag.
 
 **Proposed Solution:**
-Implement a space-partitioning data structure to reduce search complexity from O(N) to O(log N).
-- **Octree:** Best for uniform 3D distributions. However, pipe systems often run in long, clustered, linear chains along major axes rather than uniform 3D volumes.
-- **k-d Tree (k=3):** Recommended. A k-d tree is highly efficient for nearest-neighbor spatial queries on Cartesian coordinates.
-  - **Implementation Strategy:** Before the `GraphBuilder` initiates its link-matching pass, construct a 3D k-d tree containing all valid `getEntryPoint()` and `getExitPoint()` coordinates.
-  - **Querying:** When attempting to find the nearest element to an exit point within the `connectionTolerance`, the tree can perform a fast radius search.
+Implement a space-partitioning data structure to reduce search complexity from O(N) to O(log N). Piping models (PCF files) are typically composed of extremely long, linear branches (pipelines) clustered along major axes, with vast amounts of empty space in between.
 
-## 2. Type Safety & Validation: Strict Payload Casting
+- **Octree vs. k-d Tree:** An Octree uniformly subdivides 3D space into cubes. Because pipes are so sparse and linear, an Octree wastes memory and traversal time on completely empty octants. Conversely, a **k-d tree (k=3)** partitions space based on the actual median distribution of the points. It perfectly adapts to long, dense linear pipe runs while ignoring empty space.
+- **Implementation Strategy:**
+  1. Write a bespoke 3D k-d tree (often <100 lines of code with zero dependencies).
+  2. **Alternative (R-Tree Drop-in):** Utilize an off-the-shelf R-Tree implementation such as `rbush-3d`. Either structure will drop topological sweeps down to O(N log N).
+- **Querying:** Before the `GraphBuilder` initiates its link-matching pass, load all valid `getEntryPoint()` and `getExitPoint()` coordinates into the tree for fast radius bounding-box searches.
+
+## 2. Type Safety & Validation: Strict Payload Casting at the Ingestion Boundary
 
 **Problem:**
-Javascript’s dynamic typing allows implicit coercion (e.g., treating `"150"` as `150`), which can lead to catastrophic spatial math failures (e.g., string concatenation instead of vector addition). The `Zod` library is currently underutilized.
+JavaScript implicitly coercing `"150" + "150"` into `"150150"` instead of `300` is the root cause of countless silent failures in 3D math engines. Currently, implicit type coercion ruins vector math in complex files.
 
 **Proposed Solution:**
-Enforce the "Strict Archetypal Casting" doctrine using `Zod` at the immediate entry point of data ingestion (Translation Stage).
-- **Schema Definition:** Define explicit `Zod` schemas for `PcfRow`, enforcing strict `z.number()` casts for all coordinates and bores.
+Enforce the "Strict Archetypal Casting" doctrine using `Zod` as an absolute **Validation Barrier** (Anti-Corruption Layer) at the immediate entry point of file ingestion.
 - **Transformation Pipeline:**
   ```javascript
   const VectorSchema = z.object({
@@ -36,4 +37,4 @@ Enforce the "Strict Archetypal Casting" doctrine using `Zod` at the immediate en
     // ...
   });
   ```
-- **Validation Barrier:** Any row that fails parsing must be logged and either discarded or flagged *before* hitting the V1-V20 validation rules. This guarantees the mathematical engine only ever processes verified floating-point coordinates.
+- **Validation Boundary:** By forcing `z.coerce.number()` at the edge, the entire internal engine (`GraphBuilder` and `SmartFixer`) can blindly trust that `ep1.x` is a guaranteed floating-point number. Discarding or flagging invalid rows *before* they hit the complex validation rules prevents cascading `NaN` explosions deep inside the multi-pass solver.
