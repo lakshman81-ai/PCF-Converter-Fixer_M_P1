@@ -52,4 +52,24 @@ export function runGeoRules(element, context, prevElement, elemAxis, elemDir, co
         message: `ERROR [R-GEO-07]: ${type} has zero length (EP1 ≈ EP2).` });
     }
   }
+
+  // R-GEO-08: Coordinate Magnitude and Zero Check (Magnitude > 500,000mm)
+  const fields = [
+    { name: "ep1", val: element.ep1 },
+    { name: "ep2", val: element.ep2 },
+    { name: "cp", val: element.cp },
+    { name: "bp", val: element.bp },
+    { name: "supportCoor", val: element.supportCoor },
+  ];
+
+  for (const { name, val } of fields) {
+    if (!val) continue;
+
+    for (const axis of ["x", "y", "z"]) {
+      if (Math.abs(val[axis]) > 500000) {
+        log.push({ type: "Warning", ruleId: "R-GEO-08", tier: 3, row: ri,
+          message: `WARNING [R-GEO-08]: ${name}.${axis}=${val[axis].toFixed(0)}mm (${(val[axis]/1000).toFixed(1)}m) — unusually large.` });
+      }
+    }
+  }
 }

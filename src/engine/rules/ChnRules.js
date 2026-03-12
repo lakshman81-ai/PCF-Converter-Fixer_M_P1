@@ -44,26 +44,34 @@ export function runChnRules(element, context, prevElement, elemAxis, elemDir, co
   }
 
   // R-CHN-06: Shared-axis coordinate snapping
-  if (prevElement && context.travelAxis && elemAxis === context.travelAxis) {
+  if (prevElement && context.travelAxis) {
     const exitPt = getExitPoint(prevElement);
     const entryPt = getEntryPoint(element);
     if (exitPt && entryPt) {
-      const nonTravelAxes = ["X", "Y", "Z"].filter(a => a !== context.travelAxis);
-      for (const axis of nonTravelAxes) {
-        const key = axis.toLowerCase();
-        const drift = Math.abs(Number(entryPt[key]) - Number(exitPt[key]));
-        const silentThresh = Number(cfg.silentSnapThreshold ?? 2.0);
-        const warnThresh = Number(cfg.warnSnapThreshold ?? 10.0);
+      const silentSnap = Number(cfg.silentSnapThreshold ?? 2.0);
+      const warnSnap = Number(cfg.warnSnapThreshold ?? 10.0);
 
-        if (drift > 0.1 && drift < silentThresh) {
+      const nonTravelAxes = ["x", "y", "z"].filter(a => a !== context.travelAxis.toLowerCase());
+
+      for (const axis of nonTravelAxes) {
+        const drift = Math.abs(entryPt[axis] - exitPt[axis]);
+
+        if (drift > 0.1 && drift < silentSnap) {
+          // TIER 1: Silent snap — auto-fix, minimal log
+          element.ep1[axis] = exitPt[axis];
           log.push({ type: "Fix", ruleId: "R-CHN-06", tier: 1, row: ri,
-            message: `SNAP [R-CHN-06]: ${axis} drifted ${drift.toFixed(1)}mm. Silent snap.` });
-        } else if (drift >= silentThresh && drift < warnThresh) {
+            message: `SNAP [R-CHN-06 T1]: ${axis.toUpperCase()} drifted ${drift.toFixed(1)}mm. Silently snapped to ${exitPt[axis].toFixed(1)}.` });
+        }
+        else if (drift >= silentSnap && drift < warnSnap) {
+          // TIER 2: Snap with warning — auto-fix but visible
+          element.ep1[axis] = exitPt[axis];
           log.push({ type: "Fix", ruleId: "R-CHN-06", tier: 2, row: ri,
-            message: `SNAP [R-CHN-06]: ${axis} drifted ${drift.toFixed(1)}mm. Snap with warning.` });
-        } else if (drift >= warnThresh) {
+            message: `SNAP [R-CHN-06 T2]: ${axis.toUpperCase()} drifted ${drift.toFixed(1)}mm. Snapped to ${exitPt[axis].toFixed(1)}. Verify not intentional offset.` });
+        }
+        else if (drift >= warnSnap) {
+          // TIER 4: Error — too large, do NOT snap
           log.push({ type: "Error", ruleId: "R-CHN-06", tier: 4, row: ri,
-            message: `ERROR [R-CHN-06]: ${axis} offset ${drift.toFixed(1)}mm. Too large to snap.` });
+            message: `ERROR [R-CHN-06 T4]: ${axis.toUpperCase()} offset ${drift.toFixed(1)}mm from previous element. Too large for auto-snap. Manual review.` });
         }
       }
     }

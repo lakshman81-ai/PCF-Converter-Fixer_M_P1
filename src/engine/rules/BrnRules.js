@@ -18,20 +18,20 @@ export function runBrnRules(element, context, prevElement, elemAxis, elemDir, co
     const hMag = vec.mag(headerVec);
     const bMag = vec.mag(branchVec);
 
-    if (hMag > 0 && bMag > 0) {
-      const dotProd = Math.abs(vec.dot(headerVec, branchVec));
-      const cosAngle = dotProd / (hMag * bMag);
+    if (hMag > 0.1 && bMag > 0.1) {
+      const cosAngle = Math.abs(vec.dot(headerVec, branchVec)) / (hMag * bMag);
       const angleDeg = Math.acos(Math.min(cosAngle, 1.0)) * 180 / Math.PI;
       const offPerp = Math.abs(90 - angleDeg);
-      const errorThresh = Number(cfg.branchPerpendicularityError ?? 15.0);
-      const warnThresh = Number(cfg.branchPerpendicularityWarn ?? 5.0);
 
-      if (offPerp > errorThresh) {
+      const warnThreshold = Number(cfg.branchPerpendicularityWarn ?? 5.0);
+      const errThreshold = Number(cfg.branchPerpendicularityError ?? 15.0);
+
+      if (offPerp > errThreshold) {
         log.push({ type: "Error", ruleId: "R-BRN-04", tier: 4, row: ri,
-          message: `ERROR [R-BRN-04]: Branch ${offPerp.toFixed(1)}° from perpendicular.` });
-      } else if (offPerp > warnThresh) {
+          message: `ERROR [R-BRN-04]: Branch ${offPerp.toFixed(1)}° from perpendicular. Exceeds ${errThreshold}° threshold.` });
+      } else if (offPerp > warnThreshold) {
         log.push({ type: "Warning", ruleId: "R-BRN-04", tier: 3, row: ri,
-          message: `WARNING [R-BRN-04]: Branch ${offPerp.toFixed(1)}° from perpendicular.` });
+          message: `WARNING [R-BRN-04]: Branch ${offPerp.toFixed(1)}° from perpendicular. Exceeds ${warnThreshold}° threshold.` });
       }
     }
   }

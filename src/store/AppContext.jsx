@@ -49,6 +49,7 @@ const initialState = {
     tee_C_dimension: {},
   },
   log: [],
+  history: [],
   smartFix: {
     status: "idle",
     pass: 1,
@@ -64,7 +65,7 @@ const initialState = {
 function reducer(state, action) {
   switch (action.type) {
     case "SET_DATA_TABLE":
-      return { ...state, dataTable: action.payload };
+      return { ...state, dataTable: action.payload, history: [] }; // Reset history on new file
     case "SET_CONFIG":
       return { ...state, config: { ...state.config, ...action.payload } };
     case "ADD_LOG":
@@ -88,6 +89,7 @@ function reducer(state, action) {
     case "FIXES_APPLIED":
       return {
         ...state,
+        history: [...state.history, structuredClone(state.dataTable)],
         dataTable: action.payload.updatedTable,
         smartFix: {
           ...state.smartFix,
@@ -99,6 +101,19 @@ function reducer(state, action) {
             totalApplied: action.payload.applied.length,
           },
         },
+      };
+    case "UNDO_FIXES":
+      if (state.history.length === 0) return state;
+      const prevTable = state.history[state.history.length - 1];
+      const newHistory = state.history.slice(0, -1);
+      return {
+        ...state,
+        dataTable: prevTable,
+        history: newHistory,
+        smartFix: {
+          ...state.smartFix,
+          status: "idle", // reset status or mark as 'previewing' depending on desired UX
+        }
       };
     default:
       return state;

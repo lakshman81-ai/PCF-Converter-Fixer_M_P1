@@ -177,6 +177,15 @@ export function StatusBar() {
 
       <div className="flex items-center space-x-4">
         <button
+          onClick={() => dispatch({ type: "UNDO_FIXES" })}
+          disabled={state.history.length === 0}
+          className="px-4 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded font-medium disabled:opacity-50 transition-colors text-white"
+          title="Undo last applied fixes"
+        >
+          ↶ Undo
+        </button>
+
+        <button
           onClick={handleSmartFix}
           disabled={!isDataLoaded || isRunning}
           className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded font-medium disabled:opacity-50 transition-colors"

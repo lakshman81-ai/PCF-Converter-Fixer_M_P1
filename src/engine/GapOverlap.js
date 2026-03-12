@@ -124,6 +124,47 @@ export function analyzeOverlap(overlapAmt, context, current, next, cfg, log) {
   const nextType = (next.type || "").toUpperCase();
   const dir = directionLabel(context.travelAxis, context.travelDirection);
 
+  // Enveloping Overlap (R-OVR-04) check logic can be inferred implicitly if needed, but handled explicitly if overlap is fully enveloping
+  // We handle R-OVR-04 outside this typically or here if overlapping perfectly
+  if (overlapAmt > 500 && Math.abs(vec.dist(getEntryPoint(current), getEntryPoint(next))) < 5) {
+      return { type: "ERROR", ruleId: "R-OVR-04", tier: 4,
+          description: `ERROR [R-OVR-04]: Enveloping overlap detected. Element B starts before element A.`,
+          current, next };
+  }
+
+  // R-OVR-05: Overlap at Tee Boundary
+  if ((currType === "PIPE" && nextType === "TEE") || (currType === "TEE" && nextType === "PIPE")) {
+    const tee = currType === "TEE" ? current : next;
+    const pipe = currType === "PIPE" ? current : next;
+
+    // Look up tee C dimension (center-to-end, run)
+    const teeBore = tee.bore || 0;
+    // mock DB lookup using a typical configuration or calculation if DB not present
+    // Fallback logic, as the specific Addon assumes `config.brlenEqualTee` might exist
+    const teeEntry = cfg.brlenEqualTee?.find(e => e.bore === teeBore);
+    const halfC = teeEntry ? teeEntry.C / 2 : null;
+
+    if (halfC && Math.abs(overlapAmt - halfC) < 3.0) {
+      const trimTarget = currType === "PIPE" ? "current" : "next";
+
+      return {
+        type: "TRIM", ruleId: "R-OVR-05", tier: 2,
+        description: `TRIM [R-OVR-05]: Pipe trimmed by ${halfC.toFixed(1)}mm (tee half-C dimension) to accommodate TEE at Row ${tee._rowIndex}.`,
+        trimAmount: halfC,
+        trimTarget,
+        current, next,
+      };
+    }
+
+    if (halfC) {
+      return {
+        type: "REVIEW", ruleId: "R-OVR-05", tier: 3,
+        description: `REVIEW [R-OVR-05]: ${overlapAmt.toFixed(1)}mm pipe-tee overlap. Half-C=${halfC.toFixed(1)}mm.`,
+        current, next,
+      };
+    }
+  }
+
   // R-OVR-03: Rigid-on-rigid
   if (currType !== "PIPE" && nextType !== "PIPE") {
     return { type: "ERROR", ruleId: "R-OVR-03", tier: 4,
