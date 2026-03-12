@@ -8,11 +8,14 @@ import { runValidationChecklist } from '../../engine/Validator';
 import { runDataProcessor } from '../../engine/DataProcessor';
 
 import { PcfTopologyGraph2, applyApprovedMutations } from '../../engine/PcfTopologyGraph2';
+import { useStore } from '../../store/useStore';
 
 export function StatusBar() {
   const [showModal, setShowModal] = React.useState(false);
   const [runGroup, setRunGroup] = React.useState('group1');
   const { state, dispatch } = useAppContext();
+  const setZustandData = useStore(state => state.setDataTable);
+  const setZustandProposals = useStore(state => state.setProposals);
 
   const handleSmartFix = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
@@ -84,6 +87,7 @@ export function StatusBar() {
       if (runGroup === 'group2') {
           // Pass data table through PcfTopologyGraph_2
           const { proposals } = PcfTopologyGraph2(processedTable, state.config, logger);
+          setZustandProposals(proposals);
           // Auto-apply logic or just attach them for the UI
           processedTable = applyApprovedMutations(processedTable, proposals, logger);
       }
@@ -101,6 +105,7 @@ export function StatusBar() {
         }
       });
       dispatch({ type: "SET_DATA_TABLE", payload: processedTable });
+      setZustandData(processedTable);
       alert("Processing & Validation complete! Check Debug tab and Data Table for results.");
   };
 
@@ -164,6 +169,7 @@ export function StatusBar() {
               }
             });
             dispatch({ type: "SET_DATA_TABLE", payload: processedTable });
+            setZustandData(processedTable);
 
             // intercept to show modal instead
             setShowModal(true);
@@ -177,7 +183,14 @@ export function StatusBar() {
 
       <div className="flex items-center space-x-4">
         <button
-          onClick={() => dispatch({ type: "UNDO_FIXES" })}
+          onClick={() => {
+            dispatch({ type: "UNDO_FIXES" });
+            // ensure Zustand syncs with the undone state
+            if (state.history.length > 0) {
+              const prevTable = state.history[state.history.length - 1];
+              setZustandData(prevTable);
+            }
+          }}
           disabled={state.history.length === 0}
           className="px-4 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded font-medium disabled:opacity-50 transition-colors text-white"
           title="Undo last applied fixes"

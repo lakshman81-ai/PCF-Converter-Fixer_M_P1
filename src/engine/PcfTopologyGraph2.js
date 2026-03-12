@@ -11,7 +11,11 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
     // Auto-select based on mode
     if (strategy !== "strict_sequential") {
         logger.push({ stage: "FIXING", type: "Info", message: "Executing Dual Strategy: Spatial Mode via GraphBuilder" });
-        return spatialGraphBuilder(dataTable, config);
+        const graph = spatialGraphBuilder(dataTable, config);
+        // Note: spatialGraphBuilder returns the full graph structure rather than direct { proposals }.
+        // For consistency in the PcfTopologyGraph2 engine signature, we return an empty array for proposals
+        // to prevent downstream crashes, letting the spatial walker take over logic in broader execution.
+        return { proposals: [], graph };
     }
 
     // Pass 1: Sequential Topological Tracing

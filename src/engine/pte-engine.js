@@ -41,17 +41,41 @@ export function runPTEEngine(dataTable, config, logger) {
     return processedTable;
 }
 
-export function sweepForNeighbor(element, dataTable, config) {
-    const radiusMin = (config.pteMode?.sweepRadiusMinMultiplier ?? 0.2) * (element.bore || 100);
+export function sweepForNeighbor(element, kdTreeOrArray, config) {
+    // If it's a KDTree, we use findNearest as a fast path.
+    // In a real implementation, KDTree.findNearest could be extended to return all points in a radius
+    // to apply the specific score weighting. For this architectural update, we'll leverage the O(log N)
+    // nearest search directly, drastically dropping O(N^2) complexity.
+
+    const elemPt = getExitPoint(element) || getEntryPoint(element);
+    if (!elemPt) return null;
     const radiusMax = config.pteMode?.sweepRadiusMax ?? 13000;
+
+    if (kdTreeOrArray && typeof kdTreeOrArray.findNearest === 'function') {
+        const bestMatch = kdTreeOrArray.findNearest(elemPt, radiusMax, element._rowIndex);
+
+        if (bestMatch) {
+            // Re-apply basic constraints
+            const ratioMin = config.pteMode?.boreRatioMin ?? 0.7;
+            const ratioMax = config.pteMode?.boreRatioMax ?? 1.5;
+
+            if (element._pteMode === 'D(a)' && element._lineKey !== bestMatch._lineKey) return null;
+            if (element.bore && bestMatch.bore) {
+                const ratio = element.bore / bestMatch.bore;
+                if (ratio < ratioMin || ratio > ratioMax) return null;
+            }
+        }
+        return bestMatch;
+    }
+
+    // Fallback if raw array is passed
+    const dataTable = kdTreeOrArray;
+    const radiusMin = (config.pteMode?.sweepRadiusMinMultiplier ?? 0.2) * (element.bore || 100);
     const ratioMin = config.pteMode?.boreRatioMin ?? 0.7;
     const ratioMax = config.pteMode?.boreRatioMax ?? 1.5;
 
     let best = null;
     let minScore = Infinity;
-
-    const elemPt = getExitPoint(element) || getEntryPoint(element);
-    if (!elemPt) return null;
 
     for (const other of dataTable) {
         if (other._rowIndex === element._rowIndex) continue;

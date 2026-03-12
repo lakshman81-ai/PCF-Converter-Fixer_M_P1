@@ -1,12 +1,15 @@
 import { vec } from '../math/VectorMath.js';
-
 import { runPTEEngine } from './pte-engine.js';
+import { validatePcfData } from './SchemaValidator.js';
 
 export function runDataProcessor(dataTable, config, logger) {
-  logger.push({ type: "Info", message: "═══ RUNNING PRE-VALIDATION DATA PROCESSING (STEPS 1-11) ═══" });
+  logger.push({ stage: "TRANSLATION", type: "Info", message: "═══ RUNNING PRE-VALIDATION DATA PROCESSING (STEPS 1-11) ═══" });
+
+  // 1. Validation Barrier (Zod Archetypal Casting)
+  const zodedTable = validatePcfData(dataTable, logger);
 
   // Run PTE Engine Pre-Flight
-  const pteEnrichedTable = runPTEEngine(dataTable, config, logger);
+  const pteEnrichedTable = runPTEEngine(zodedTable, config, logger);
   const updatedTable = [...pteEnrichedTable];
   let seq = 1;
   let bendPtr = 0, rigidPtr = 0, intPtr = 0;

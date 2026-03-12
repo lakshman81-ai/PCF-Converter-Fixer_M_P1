@@ -5,11 +5,14 @@ import { DataTableTab } from './ui/tabs/DataTableTab';
 import { DebugTab } from './ui/tabs/DebugTab';
 import { ConfigTab } from './ui/tabs/ConfigTab';
 import { OutputTab } from './ui/tabs/OutputTab';
+import { CanvasTab } from './ui/tabs/CanvasTab';
 import { AppProvider, useAppContext } from './store/AppContext';
+import { useStore } from './store/useStore';
 
 function MainApp() {
   const [activeTab, setActiveTab] = useState('data');
   const { state, dispatch } = useAppContext();
+  const setZustandData = useStore(s => s.setDataTable);
 
   // Mock data loader for testing the UI and logic
   const loadMockData = () => {
@@ -23,6 +26,7 @@ function MainApp() {
       { _rowIndex: 7, type: "VALVE", ep1: {x: 2150, y: 154, z: 0}, ep2: {x: 2150, y: 354, z: 0}, bore: 50, skey: "VBFL" },
     ];
     dispatch({ type: "SET_DATA_TABLE", payload: mockData });
+    setZustandData(mockData);
   };
 
   return (
@@ -48,6 +52,13 @@ function MainApp() {
             Data Table
           </button>
           <button
+            onClick={() => setActiveTab('canvas')}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors flex items-center gap-1 ${activeTab === 'canvas' ? 'border-blue-600 text-blue-700 bg-white rounded-t' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+          >
+            <span>3D Topology</span>
+            <span className="bg-blue-100 text-blue-700 py-0.5 px-1.5 rounded text-[10px] uppercase font-bold">New</span>
+          </button>
+          <button
             onClick={() => setActiveTab('config')}
             className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'config' ? 'border-blue-600 text-blue-700 bg-white rounded-t' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
           >
@@ -70,6 +81,7 @@ function MainApp() {
         {/* Tab Content */}
         <div className="bg-white rounded shadow-sm min-h-[500px] border border-slate-200">
           {activeTab === 'data' && <DataTableTab />}
+          {activeTab === 'canvas' && <div className="p-2"><CanvasTab /></div>}
           {activeTab === 'config' && <ConfigTab />}
           {activeTab === 'debug' && <div className="p-4"><DebugTab /></div>}
           {activeTab === 'output' && <OutputTab />}

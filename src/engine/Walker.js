@@ -39,7 +39,8 @@ export function walkAllChains(graph, config, log) {
       log.push({ type: "Info", message: "Starting Stage 2: Constrained Orphan Sweep for non-sequential matches..." });
       for (let i = orphans.length - 1; i >= 0; i--) {
           const orphan = orphans[i];
-          const neighbor = sweepForNeighbor(orphan, graph.components, config);
+          // Pass the KD tree to the sweep engine instead of array
+          const neighbor = sweepForNeighbor(orphan, graph.entryTree, config);
           if (neighbor) {
               log.push({ type: "Info", message: `Orphan ${orphan.type} (Row ${orphan._rowIndex}) matched to ${neighbor.type} (Row ${neighbor._rowIndex}) via axis_sweep.` });
               // Simulate chaining
