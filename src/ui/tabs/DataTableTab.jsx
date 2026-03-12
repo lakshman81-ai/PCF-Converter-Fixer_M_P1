@@ -53,7 +53,7 @@ export function DataTableTab() {
                 r._modified.bore = "Fallback";
             }
             // Missing CP for TEES
-            if (r.type === "TEE" && (!r.cp || (r.cp.x === 0 && r.cp.y === 0 && r.cp.z === 0)) && r.ep1 && r.ep2) {
+            if (r.type === "TEE" && (!r.cp || (r.cp.x === undefined && r.cp.y === undefined && r.cp.z === undefined) || (r.cp.x === 0 && r.cp.y === 0 && r.cp.z === 0)) && r.ep1 && r.ep2) {
                 r.cp = {
                     x: (r.ep1.x + r.ep2.x) / 2,
                     y: (r.ep1.y + r.ep2.y) / 2,
@@ -64,7 +64,7 @@ export function DataTableTab() {
             }
 
             // Calculate Vector Deltas (Axis) if missing
-            if (r.ep1 && r.ep2 && (!r.deltaX || !r.deltaY || !r.deltaZ)) {
+            if (r.ep1 && r.ep2 && (r.deltaX === undefined || r.deltaY === undefined || r.deltaZ === undefined)) {
                 r.deltaX = r.ep2.x - r.ep1.x;
                 r.deltaY = r.ep2.y - r.ep1.y;
                 r.deltaZ = r.ep2.z - r.ep1.z;
@@ -75,6 +75,8 @@ export function DataTableTab() {
             return r;
        });
        dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+       // Trigger a sync so StatusBar knows table changed if needed
+       window.dispatchEvent(new CustomEvent('zustand-force-sync'));
   };
 
   const handleValidateSyntax = () => {
@@ -112,6 +114,19 @@ export function DataTableTab() {
     }
     return { approved, rejected, pending, errPass1, warnPass1, errPass2, warnPass2 };
   }, [state.dataTable]);
+
+  const filteredDataTable = React.useMemo(() => {
+     if (!dataTable) return [];
+     if (filterAction === 'ALL') return dataTable;
+     if (filterAction === 'ERRORS_WARNINGS') return dataTable.filter(r => r.fixingAction && (r.fixingAction.includes('ERROR') || r.fixingAction.includes('WARNING')));
+     if (filterAction === 'PROPOSALS') return dataTable.filter(r => r.fixingAction && !r.fixingAction.includes('ERROR') && !r.fixingAction.includes('WARNING'));
+     if (filterAction === 'PENDING') return dataTable.filter(r => r.fixingAction && r._fixApproved === undefined);
+     if (filterAction === 'APPROVED') return dataTable.filter(r => r._fixApproved === true);
+     if (filterAction === 'REJECTED') return dataTable.filter(r => r._fixApproved === false);
+     return dataTable;
+  }, [dataTable, filterAction]);
+
+  const [filterAction, setFilterAction] = React.useState('ALL');
 
   if (!dataTable || dataTable.length === 0) {
     return (
@@ -174,11 +189,14 @@ export function DataTableTab() {
                 <div className={`mt-1 pl-2 border-l-2 ${row._passApplied > 0 ? 'border-green-400 text-green-800' : 'border-amber-400 text-amber-800'}`}>
                      <span className="font-bold mr-1">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
                      <span className={row._fixApproved === false ? "line-through opacity-70" : ""}>{actionMsg}</span>
+                     {row._passApplied === undefined && row._fixApproved === true && !row._isPassiveFix && (
+                        <div className="text-[9px] text-blue-600 mt-1 italic">(Click 'Apply Fixes ✓' in footer to mutate geometry)</div>
+                     )}
                 </div>
-                {row._passApplied !== 1 && row._passApplied !== 2 && (
+                {row._passApplied !== 1 && row._passApplied !== 2 && !row._isPassiveFix && (
                     <div className="mt-2 flex space-x-2">
-                        <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✓ Approve</button>
-                        <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-500 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✗ Reject</button>
+                        <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-100 text-green-800 border border-green-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✓ Approve</button>
+                        <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-200 text-slate-500 border border-slate-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✗ Reject</button>
                     </div>
                 )}
             </>
@@ -222,19 +240,34 @@ export function DataTableTab() {
                 <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pending})</span>
             </div>
         </div>
-        <div className="flex flex-wrap space-x-2">
-            <button onClick={handleValidateSyntax} className="px-3 py-1.5 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded text-sm font-medium border border-teal-200 shadow-sm transition-colors">
-                Validate Data Table Syntax
-            </button>
-            <button onClick={handleCalculateMissingGeometry} className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-sm font-medium border border-blue-200 shadow-sm transition-colors">
-                Calculate Missing Geometry
-            </button>
-            <button onClick={handleIgnoreAllWarnings} className="px-3 py-1.5 bg-slate-50 text-slate-700 hover:bg-slate-100 rounded text-sm font-medium border border-slate-200 shadow-sm transition-colors">
-                Ignore All Warnings
-            </button>
-            <button onClick={handleAutoApproveAll} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-sm font-medium border border-indigo-200 shadow-sm transition-colors">
-                Auto Approve First Pass (&lt; 25mm)
-            </button>
+        <div className="flex flex-wrap items-center gap-2 bg-white px-2 py-1 rounded border border-slate-300 shadow-sm">
+            <div className="flex items-center space-x-2 border-r border-slate-200 pr-3 mr-1">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FILTER:</span>
+                <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="text-sm bg-slate-50 text-slate-700 border-none outline-none cursor-pointer py-1 px-1 rounded font-medium">
+                    <option value="ALL">All Rows</option>
+                    <option value="ERRORS_WARNINGS">Errors & Warnings</option>
+                    <option value="PROPOSALS">Smart Fix Proposals</option>
+                    <option value="PENDING">Pending Approval</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                </select>
+            </div>
+
+            <div className="flex items-center space-x-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 hidden md:inline-block">Tools:</span>
+                <button onClick={handleValidateSyntax} className="px-2.5 py-1 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-700 rounded text-xs font-semibold border border-transparent hover:border-teal-200 transition-all shadow-sm" title="Run strict Data Table validation checks">
+                    <span className="mr-1">🛡️</span>Validate Syntax
+                </button>
+                <button onClick={handleCalculateMissingGeometry} className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded text-xs font-semibold border border-transparent hover:border-blue-200 transition-all shadow-sm" title="Calculate missing bores, midpoints, and vectors">
+                    <span className="mr-1">📐</span>Calc Geometry
+                </button>
+                <button onClick={handleIgnoreAllWarnings} className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-800 rounded text-xs font-semibold border border-transparent hover:border-slate-300 transition-all shadow-sm" title="Acknowledge and dismiss all current warnings">
+                    <span className="mr-1">👁️‍🗨️</span>Ignore Warnings
+                </button>
+                <button onClick={handleAutoApproveAll} className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-bold border border-indigo-200 transition-all shadow-sm ml-2" title="Approve all Tier 1/2 automated fixes">
+                    <span className="mr-1">⚡</span>Auto Approve (&lt;25mm)
+                </button>
+            </div>
         </div>
       </div>
   <div className="overflow-auto h-[calc(100vh-14rem)] border rounded shadow-sm bg-white relative">
@@ -290,7 +323,7 @@ export function DataTableTab() {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-slate-200">
-          {dataTable.map((row) => (
+          {filteredDataTable.map((row) => (
             <tr key={row._rowIndex} className="hover:bg-slate-50 transition-colors whitespace-nowrap">
               <td className="px-3 py-2 text-slate-500 border-r border-slate-200 sticky left-0 z-10 bg-white font-mono">{row._rowIndex}</td>
               <td className={`px-3 py-2 border-r border-slate-200 sticky left-[60px] z-10 bg-white font-mono ${getCellClass(row, 'csvSeqNo')}`}>{row.csvSeqNo || '—'}</td>

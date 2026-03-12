@@ -42,24 +42,46 @@ export function ConfigTab() {
       {/* V1-V20 Checks List */}
       <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
         <h3 className="font-semibold text-slate-700 mb-3 border-b pb-2">Validation Rules Checklist (V1-V20)</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {[...Array(20)].map((_, i) => {
-                const ruleId = `V${i+1}`;
-                const checked = localConfig.enabledChecks ? localConfig.enabledChecks[ruleId] !== false : true;
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
+            {[
+              { id: 'V1', desc: 'No (0,0,0) coordinates' },
+              { id: 'V2', desc: 'Decimal consistency' },
+              { id: 'V3', desc: 'Bore consistency' },
+              { id: 'V4', desc: 'BEND CP != EP1' },
+              { id: 'V5', desc: 'BEND CP != EP2' },
+              { id: 'V6', desc: 'BEND CP not collinear' },
+              { id: 'V7', desc: 'BEND equidistant legs' },
+              { id: 'V8', desc: 'TEE CP at midpoint' },
+              { id: 'V9', desc: 'TEE CP bore matches' },
+              { id: 'V10', desc: 'TEE Branch perpendicular' },
+              { id: 'V11', desc: 'OLET has no end-points' },
+              { id: 'V12', desc: 'SUPPORT has no CAs' },
+              { id: 'V13', desc: 'SUPPORT bore is 0' },
+              { id: 'V14', desc: 'Missing <SKEY>' },
+              { id: 'V15', desc: 'Coordinate continuity' },
+              { id: 'V16', desc: 'CA8 usage scope' },
+              { id: 'V17', desc: 'Reserved' },
+              { id: 'V18', desc: 'Bore unit (MM/Inch check)' },
+              { id: 'V19', desc: 'SUPPORT MSG-SQ tokens' },
+              { id: 'V20', desc: 'SUPPORT GUID Prefix (UCI:)' }
+            ].map(({ id, desc }) => {
+                const checked = localConfig.enabledChecks ? localConfig.enabledChecks[id] !== false : true;
                 return (
-                    <div key={ruleId} className="flex items-center space-x-2">
+                    <div key={id} className="flex items-start space-x-2 py-1">
                         <input
                             type="checkbox"
-                            id={`chk-${ruleId}`}
-                            className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                            id={`chk-${id}`}
+                            className="w-4 h-4 mt-0.5 text-blue-600 rounded border-gray-300"
                             checked={checked}
                             onChange={(e) => {
                                 const newChecks = { ...(localConfig.enabledChecks || {}) };
-                                newChecks[ruleId] = e.target.checked;
+                                newChecks[id] = e.target.checked;
                                 setLocalConfig(prev => ({ ...prev, enabledChecks: newChecks }));
                             }}
                         />
-                        <label htmlFor={`chk-${ruleId}`} className="text-sm font-medium text-slate-700 cursor-pointer">{ruleId}</label>
+                        <label htmlFor={`chk-${id}`} className="text-sm text-slate-700 cursor-pointer leading-tight">
+                            <span className="font-semibold w-8 inline-block">{id}:</span> {desc}
+                        </label>
                     </div>
                 );
             })}

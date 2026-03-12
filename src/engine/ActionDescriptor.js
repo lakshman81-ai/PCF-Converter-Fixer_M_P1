@@ -31,9 +31,12 @@ export function populateFixingActions(dataTable, chains, log) {
           currRow.fixingActionRuleId = link.fixAction.ruleId;
         }
         if (nextRow && !nextRow.fixingAction && link.fixAction.tier <= 3) {
-          nextRow.fixingAction = `← ${link.fixAction.description.split('\n')[0]}`;
+          nextRow.fixingAction = `Passive Element: Automatically corrected by modifying Row ${currRow._rowIndex}.`;
           nextRow.fixingActionTier = link.fixAction.tier;
           nextRow.fixingActionRuleId = link.fixAction.ruleId;
+          // Marking this helps the UI hide "Approve/Reject" if needed,
+          // or at least informs the user they don't have to approve this twice.
+          nextRow._isPassiveFix = true;
         }
       }
 

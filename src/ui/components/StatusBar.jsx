@@ -110,11 +110,12 @@ export function StatusBar() {
   const handleSecondPass = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
     const logger = createLogger();
-    // Simulate second pass triggering by modifying state temporarily or just calling smart fix again with pass 2 context
     // Before running we flag the table that it's pass 2
-    let pass2Table = state.dataTable.map(r => ({ ...r, _currentPass: 2 }));
+    let pass2Table = state.dataTable.map(r => ({ ...r, _currentPass: 2, _passApplied: r._passApplied || 2 }));
     const result = runSmartFix(pass2Table, { ...state.config, currentPass: 2 }, logger);
     logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
+    // Update data table explicitly so UI picks up the pass 2 prefixes
+    dispatch({ type: "SET_DATA_TABLE", payload: pass2Table });
     dispatch({ type: "SMART_FIX_COMPLETE", payload: { ...result, pass: 2 } });
   };
 

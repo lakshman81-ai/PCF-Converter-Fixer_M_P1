@@ -32,7 +32,7 @@ const PcfElementSchema = z.object({
   supportGuid: z.string().optional().nullable(),
   supportName: z.string().optional().nullable(),
   ca: z.record(z.string(), z.any()).optional().nullable(),
-  csvSeqNo: z.string().optional().nullable(),
+  csvSeqNo: z.coerce.string().optional().nullable(),
 }).passthrough(); // Allow other keys but strictly type the known ones
 
 export function validatePcfData(dataTable, logger) {

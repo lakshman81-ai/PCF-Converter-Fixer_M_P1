@@ -6,6 +6,18 @@ export function runValidationChecklist(dataTable, config, logger) {
   let errorCount = 0;
   let warnCount = 0;
 
+  // Auto-detect precision standard from the first 20 rows
+  let floatCount = 0;
+  let intCount = 0;
+  for (let i = 0; i < Math.min(20, dataTable.length); i++) {
+      const r = dataTable[i];
+      if (r.ep1) {
+          if (!Number.isInteger(r.ep1.x) || !Number.isInteger(r.ep1.y) || !Number.isInteger(r.ep1.z)) floatCount++;
+          else intCount++;
+      }
+  }
+  const isGlobalFloatStandard = floatCount > intCount;
+
   for (const row of dataTable) {
     const type = (row.type || "").toUpperCase();
     const ri = row._rowIndex;
@@ -17,10 +29,13 @@ export function runValidationChecklist(dataTable, config, logger) {
     // Helper to see if a rule should run
     const shouldRun = (ruleId) => enabledChecks[ruleId] !== false; // default true if missing
 
-    // V2: Decimal Consistency
-    if (shouldRun('V2') && row.bore && row.ep1 && Number.isInteger(row.bore) && (!Number.isInteger(row.ep1.x) || !Number.isInteger(row.ep1.y) || !Number.isInteger(row.ep1.z))) {
-        logger.push({ stage: "VALIDATION", type: "Warning", ruleId: "V2", tier: 3, row: ri, message: `WARNING [V2]: Decimal consistency violation.` });
-        warnCount++;
+    // V2: Decimal Consistency (Auto-detected)
+    if (shouldRun('V2') && row.ep1) {
+        const isLocalFloat = !Number.isInteger(row.ep1.x) || !Number.isInteger(row.ep1.y) || !Number.isInteger(row.ep1.z);
+        if (!isGlobalFloatStandard && isLocalFloat) {
+            logger.push({ stage: "VALIDATION", type: "Warning", ruleId: "V2", tier: 3, row: ri, message: `WARNING [V2]: Decimal consistency violation. Expected integers based on file standard.` });
+            warnCount++;
+        }
     }
 
     // V3: Bore Consistency
@@ -91,7 +106,8 @@ export function runValidationChecklist(dataTable, config, logger) {
     if (shouldRun('V15') && type !== "SUPPORT" && row._rowIndex > 1) {
         const prevRow = dataTable.find(r => r._rowIndex === row._rowIndex - 1);
         if (prevRow && prevRow.ep2 && row.ep1 && !vec.approxEqual(row.ep1, prevRow.ep2, 1.0)) {
-            logger.push({ stage: "VALIDATION", type: "Warning", ruleId: "V15", tier: 3, row: ri, message: "WARNING [V15]: Coordinate discontinuity." });
+            const dist = vec.dist(row.ep1, prevRow.ep2);
+            logger.push({ stage: "VALIDATION", type: "Warning", ruleId: "V15", tier: 3, row: ri, message: `WARNING [V15]: Coordinate discontinuity at EP1 by ${dist.toFixed(1)}mm.` });
             warnCount++;
         }
     }
