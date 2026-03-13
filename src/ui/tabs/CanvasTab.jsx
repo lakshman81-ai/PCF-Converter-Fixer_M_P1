@@ -73,15 +73,22 @@ const InstancedPipes = () => {
 
               setSelectedGeom({ pos: [midX, midY, midZ], dist: distance, radius, quat: quaternion });
 
+              useStore.getState().setSelected(pipe._rowIndex);
+
               window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: midX, y: midY, z: midZ, dist: distance } }));
           }
       }
   };
 
+  const handlePointerMissed = () => {
+      setSelectedGeom(null);
+      useStore.getState().setSelected(null);
+  };
+
   if (pipes.length === 0) return null;
 
   return (
-    <group>
+    <group onPointerMissed={handlePointerMissed}>
         <instancedMesh ref={meshRef} args={[null, null, pipes.length]} onPointerDown={handlePointerDown}>
           <cylinderGeometry args={[1, 1, 1, 16]} />
           <meshStandardMaterial color="#3b82f6" />
@@ -112,18 +119,25 @@ const ProposalOverlay = ({ proposal }) => {
 
   const handleApproveAndMutate = (e) => {
       e.stopPropagation();
+
+      // 1. Mark as approved in Zustand visual store
       setProposalStatus(elementA._rowIndex, true);
 
+      // 2. Mark as approved in a cloned Global state table
       const updatedTable = appState.stage2Data.map(r =>
           r._rowIndex === elementA._rowIndex ? { ...r, _fixApproved: true } : r
       );
 
+      // 3. Run the physics engine instantly!
       const logger = createLogger();
       const result = applyFixes(updatedTable, appState.smartFix.chains, appState.config, logger);
       const tableToApply = result.updatedTable || result.table || result;
 
+      // 4. Update Global Context
       dispatch({ type: "SET_STAGE_2_DATA", payload: tableToApply });
       dispatch({ type: "SET_SMART_FIX_STATUS", status: "applied" });
+
+      // 5. Instantly force the 3D Canvas to re-render the new solid geometry
       setTable(tableToApply);
       setClicked(false);
   };
@@ -136,36 +150,84 @@ const ProposalOverlay = ({ proposal }) => {
 
   if (!elementA.ep2 || !elementB.ep1) return null;
 
-  const pA = [elementA.ep2.x, elementA.ep2.y, elementA.ep2.z];
-  const pB = [elementB.ep1.x, elementB.ep1.y, elementB.ep1.z];
+  const vecA = new THREE.Vector3(elementA.ep2.x, elementA.ep2.y, elementA.ep2.z);
+  const vecB = new THREE.Vector3(elementB.ep1.x, elementB.ep1.y, elementB.ep1.z);
+  const distance = vecA.distanceTo(vecB);
 
-  const midX = (pA[0] + pB[0]) / 2;
-  const midY = (pA[1] + pB[1]) / 2;
-  const midZ = (pA[2] + pB[2]) / 2;
+  const midPoint = vecA.clone().lerp(vecB, 0.5);
+  const midX = midPoint.x;
+  const midY = midPoint.y;
+  const midZ = midPoint.z;
+
+  const direction = vecB.clone().sub(vecA).normalize();
+  const up = new THREE.Vector3(0, 1, 0);
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+
+  // Determine if it's a pipe-to-pipe connection
+  const isPipeA = (elementA.type || "").toUpperCase() === 'PIPE';
+  const isPipeB = (elementB.type || "").toUpperCase() === 'PIPE';
+
+  const isGap = distance > 1; // Assuming 1mm tolerance
+
+  const bore = elementA.bore || elementB.bore || 10;
+  const radius = bore / 2;
 
   // Active Html overlay is expensive, so only show when clicked
   return (
     <group>
-      <Line
-        points={[pA, pB]}
-        color={hovered ? "#fcd34d" : "#ef4444"}
-        lineWidth={3}
-        dashed={true}
-        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
-        onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
-      />
+      {isPipeA && isPipeB && distance > 0 ? (
+          // Draw translucent pipe
+          <mesh
+            position={[midX, midY, midZ]}
+            quaternion={quaternion}
+            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+            onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
+            onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
+          >
+              <cylinderGeometry args={[radius, radius, distance, 16]} />
+              <meshStandardMaterial
+                  color={isGap ? (hovered ? "#f87171" : "#ef4444") : (hovered ? "#60a5fa" : "#3b82f6")}
+                  transparent={true}
+                  opacity={0.6}
+                  depthWrite={false}
+              />
+          </mesh>
+      ) : (
+          // Draw Line for non-pipe elements
+          <Line
+            points={[[vecA.x, vecA.y, vecA.z], [vecB.x, vecB.y, vecB.z]]}
+            color={hovered ? "#fcd34d" : "#ef4444"}
+            lineWidth={3}
+            dashed={true}
+            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+            onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
+            onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
+          />
+      )}
+
+      {/* Fallback Icon for non-pipe elements */}
+      {(!isPipeA || !isPipeB) && (
+          <mesh
+            position={[midX, midY, midZ]}
+            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+            onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
+            onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
+          >
+              <sphereGeometry args={[radius * 2, 16, 16]} />
+              <meshStandardMaterial color={hovered ? "#fcd34d" : "#ef4444"} transparent={true} opacity={0.8} />
+          </mesh>
+      )}
 
       {/* Passive Text Label (cheap WebGL) */}
-      {!clicked && (
+      {!clicked && distance > 0 && (
         <Text
-          position={[midX, midY + 150, midZ]}
+          position={[midX, midY + radius * 3 + 50, midZ]}
           color="#ef4444"
           fontSize={80}
           anchorX="center"
           anchorY="middle"
         >
-          {Math.round(new THREE.Vector3(...pA).distanceTo(new THREE.Vector3(...pB)))}mm
+          {Math.round(distance)}mm
         </Text>
       )}
 
@@ -211,6 +273,51 @@ const ProposalOverlay = ({ proposal }) => {
   );
 };
 
+
+// ----------------------------------------------------
+// Stage-2 Errors/Warnings Panel
+// ----------------------------------------------------
+const IssuesPanel = () => {
+    const proposals = useStore(state => state.proposals);
+
+    const handleFocusIssue = (prop) => {
+        if (!prop.elementA || !prop.elementA.ep2) return;
+        const x = prop.elementA.ep2.x;
+        const y = prop.elementA.ep2.y;
+        const z = prop.elementA.ep2.z;
+        window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x, y, z, dist: 1500 } }));
+    };
+
+    const activeIssues = proposals.filter(p => p._fixApproved !== true);
+
+    if (activeIssues.length === 0) return null;
+
+    return (
+        <div className="absolute top-4 right-32 z-10 w-64 max-h-96 overflow-y-auto bg-slate-900/90 border border-red-500/30 rounded-lg shadow-2xl backdrop-blur text-sm pointer-events-auto flex flex-col">
+            <div className="bg-red-900/50 p-2 border-b border-red-500/30 sticky top-0 flex justify-between items-center">
+                <span className="text-red-300 font-bold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    Stage 2 Issues ({activeIssues.length})
+                </span>
+            </div>
+            <div className="p-2 flex flex-col gap-2">
+                {activeIssues.map((prop, idx) => (
+                    <div
+                        key={idx}
+                        className="bg-slate-800/80 p-2 rounded border border-slate-700 hover:border-red-500/50 cursor-pointer transition-colors"
+                        onClick={() => handleFocusIssue(prop)}
+                    >
+                        <div className="flex justify-between items-start">
+                            <span className="font-semibold text-slate-200">Gap Anomaly</span>
+                            <span className="text-xs text-red-400 bg-red-900/30 px-1 rounded border border-red-800">Review</span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2" title={prop.description}>{prop.description}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 // ----------------------------------------------------
 // Main Tab Component
@@ -328,6 +435,8 @@ export function CanvasTab() {
             Auto Center
         </button>
       </div>
+
+      <IssuesPanel />
 
       <Canvas camera={{ position: [5000, 5000, 5000], fov: 50, near: 1, far: 100000 }}>
         <color attach="background" args={['#020617']} />
