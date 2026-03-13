@@ -41,7 +41,7 @@ export function ConfigTab() {
 
       {/* V1-V20 Checks List */}
       <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
-        <h3 className="font-semibold text-slate-700 mb-3 border-b pb-2">Validation Rules Checklist (V1-V20)</h3>
+        <h3 className="font-semibold text-slate-700 mb-3 border-b pb-2">Validation Rules Checklist (V1-V24)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
             {[
               { id: 'V1', desc: 'No (0,0,0) coordinates' },
@@ -89,6 +89,30 @@ export function ConfigTab() {
                     </div>
                 );
             })}
+        </div>
+
+        {/* R-Rule Documentation */}
+        <div className="mt-4 pt-4 border-t border-slate-200">
+             <h3 className="font-semibold text-slate-700 mb-3">Topological Rules (R-XX) Execution Pipeline</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                 <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                     <h4 className="font-bold text-blue-800 mb-2 border-b border-blue-200 pb-1">Phase 1 (Pipe Trimming & Filling)</h4>
+                     <ul className="list-disc pl-5 text-blue-900 space-y-1">
+                         <li><span className="font-semibold">R1:</span> Pipe Segment Micro-Gap Deletion</li>
+                         <li><span className="font-semibold">R2:</span> Pipe Segment Micro-Overlap Trimming</li>
+                         <li><span className="font-semibold">V15:</span> Coordinate Continuity Enforcement</li>
+                     </ul>
+                 </div>
+                 <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                     <h4 className="font-bold text-purple-800 mb-2 border-b border-purple-200 pb-1">Phase 2 (Topology & Fixes)</h4>
+                     <ul className="list-disc pl-5 text-purple-900 space-y-1">
+                         <li><span className="font-semibold">R3:</span> Fitting Off-Axis Snapping</li>
+                         <li><span className="font-semibold">R4:</span> Orphaned Component Translation</li>
+                         <li><span className="font-semibold">R5:</span> Flow Direction Reversal (BEND/FLANGE)</li>
+                         <li><span className="font-semibold">R6:</span> Global Axis Topology Search</li>
+                     </ul>
+                 </div>
+             </div>
         </div>
       </div>
 

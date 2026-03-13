@@ -70,7 +70,7 @@ export function StatusBar() {
   const isDataLoaded = state.stage2Data && state.stage2Data.length > 0;
   const isRunning = state.smartFix.status === "running";
   const isApplying = state.smartFix.status === "applying";
-  const isSecondPassReady = state.smartFix.status === "applied" && state.config.pteMode?.autoMultiPassMode;
+  const isSecondPassReady = (state.smartFix.status === "applied" || state.smartFix.status === "previewing") && state.config.pteMode?.autoMultiPassMode;
 
   // Apply Fixes should be enabled if any row is approved and we're not currently applying
   const hasApprovedFixes = state.stage2Data && state.stage2Data.some(r => r._fixApproved === true);

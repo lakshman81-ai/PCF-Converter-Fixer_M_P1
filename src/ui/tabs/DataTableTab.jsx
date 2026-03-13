@@ -44,8 +44,24 @@ export function DataTableTab({ stage = "1" }) {
 
 
   const handleCalculateMissingGeometry = () => {
+       let bendPtr = 0, rigidPtr = 0, intPtr = 0;
+
+       const getAxis = (ep1, ep2) => {
+            const dx = Math.abs(ep2.x - ep1.x);
+            const dy = Math.abs(ep2.y - ep1.y);
+            const dz = Math.abs(ep2.z - ep1.z);
+            if (dx > dy && dx > dz) return 'X';
+            if (dy > dx && dy > dz) return 'Y';
+            if (dz > dx && dz > dy) return 'Z';
+            return 'U';
+       };
+
+       const dist = (ep1, ep2) => Math.sqrt((ep2.x-ep1.x)**2 + (ep2.y-ep1.y)**2 + (ep2.z-ep1.z)**2);
+
        const updatedTable = dataTable.map((row, index, arr) => {
             const r = { ...row };
+            const t = r.type || "";
+
             // Auto inherit bore from previous row if missing
             if ((!r.bore || r.bore === "") && index > 0) {
                  const prev = arr[index - 1];
@@ -56,13 +72,13 @@ export function DataTableTab({ stage = "1" }) {
                  }
             }
             // Missing Bore fallback for PIPES
-            if ((!r.bore || r.bore === "") && r.type === "PIPE" && r.ep1 && r.ep2) {
+            if ((!r.bore || r.bore === "") && t === "PIPE" && r.ep1 && r.ep2) {
                 r.bore = 100;
                 r._modified = r._modified || {};
                 r._modified.bore = "Fallback";
             }
             // Missing CP for TEES
-            if (r.type === "TEE" && (!r.cp || (r.cp.x === undefined && r.cp.y === undefined && r.cp.z === undefined) || (r.cp.x === 0 && r.cp.y === 0 && r.cp.z === 0)) && r.ep1 && r.ep2) {
+            if (t === "TEE" && (!r.cp || (r.cp.x === undefined && r.cp.y === undefined && r.cp.z === undefined) || (r.cp.x === 0 && r.cp.y === 0 && r.cp.z === 0)) && r.ep1 && r.ep2) {
                 r.cp = {
                     x: (r.ep1.x + r.ep2.x) / 2,
                     y: (r.ep1.y + r.ep2.y) / 2,
@@ -79,6 +95,49 @@ export function DataTableTab({ stage = "1" }) {
                 r.deltaZ = r.ep2.z - r.ep1.z;
                 r._modified = r._modified || {};
                 r._modified.deltaX = "Calc";
+            }
+
+            // Calculate LEN/AXIS
+            if (r.ep1 && r.ep2) {
+                if (r.len1 === undefined) {
+                    r.len1 = dist(r.ep1, r.ep2);
+                    r.axis1 = getAxis(r.ep1, r.ep2);
+                    r._modified = r._modified || {};
+                    r._modified.len1 = "Calc";
+                }
+            }
+            if (t === "TEE" && r.cp && r.bp) {
+                if (r.brlen === undefined) {
+                    r.brlen = dist(r.cp, r.bp);
+                    r._modified = r._modified || {};
+                    r._modified.brlen = "Calc";
+                }
+            }
+            if (t === "BEND" && r.ep1 && r.ep2 && r.cp) {
+                 if (r.len1 === undefined) { r.len1 = dist(r.cp, r.ep1); r.axis1 = getAxis(r.cp, r.ep1); r._modified = r._modified || {}; r._modified.len1 = "Calc"; }
+                 if (r.len2 === undefined) { r.len2 = dist(r.cp, r.ep2); r.axis2 = getAxis(r.cp, r.ep2); r._modified = r._modified || {}; r._modified.len2 = "Calc"; }
+            }
+
+            // Pointers
+            if (t === "BEND") {
+                if (!r.bendPtr) r.bendPtr = ++bendPtr;
+                r._modified = r._modified || {};
+                r._modified.bendPtr = "Calc";
+            } else if (t === "FLANGE" || t === "VALVE") {
+                if (!r.rigidPtr) r.rigidPtr = ++rigidPtr;
+                r._modified = r._modified || {};
+                r._modified.rigidPtr = "Calc";
+            } else if (t === "TEE" || t === "OLET") {
+                if (!r.intPtr) r.intPtr = ++intPtr;
+                r._modified = r._modified || {};
+                r._modified.intPtr = "Calc";
+            }
+
+            // Dimensions lookup (mocked or fallback to ca data)
+            if (!r.diameter && r.bore) {
+                r.diameter = r.bore; // basic approx
+                r._modified = r._modified || {};
+                r._modified.diameter = "Calc";
             }
 
             return r;
@@ -188,6 +247,7 @@ export function DataTableTab({ stage = "1" }) {
      if (filterAction === 'PENDING') return dataTable.filter(r => r.fixingAction && r._fixApproved === undefined);
      if (filterAction === 'APPROVED') return dataTable.filter(r => r._fixApproved === true);
      if (filterAction === 'REJECTED') return dataTable.filter(r => r._fixApproved === false);
+     if (filterAction === 'HAS_FIXING_ACTION') return dataTable.filter(r => r.fixingAction);
      return dataTable;
   }, [dataTable, filterAction]);
 
@@ -345,6 +405,7 @@ export function DataTableTab({ stage = "1" }) {
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FILTER:</span>
                     <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="text-sm bg-slate-50 text-slate-700 border-none outline-none cursor-pointer py-1 px-1 rounded font-medium">
                         <option value="ALL">All Rows</option>
+                        <option value="HAS_FIXING_ACTION">Has Fixing Action</option>
                         <option value="ERRORS_WARNINGS">Errors & Warnings</option>
                         <option value="PROPOSALS">Smart Fix Proposals</option>
                         <option value="PENDING">Pending Approval</option>
@@ -359,14 +420,14 @@ export function DataTableTab({ stage = "1" }) {
 
                 {stage === "1" && (
                     <>
-                        <button onClick={handleSyntaxFix} className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 rounded text-xs font-semibold border border-transparent hover:border-indigo-200 transition-all shadow-sm mr-1" title="Standardize strings and fix basic syntax errors">
-                            <span className="mr-1">🔧</span>Syntax Fix
+                        <button onClick={handleCalculateMissingGeometry} className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded text-xs font-semibold border border-transparent hover:border-blue-200 transition-all shadow-sm mr-1" title="Calculate missing bores, midpoints, and vectors">
+                            <span className="mr-1">📐</span>Calc Missing Geo
                         </button>
-                        <button onClick={handleValidateSyntax} className="px-2.5 py-1 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-700 rounded text-xs font-semibold border border-transparent hover:border-teal-200 transition-all shadow-sm" title="Run strict Data Table validation checks">
+                        <button onClick={handleValidateSyntax} className="px-2.5 py-1 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-700 rounded text-xs font-semibold border border-transparent hover:border-teal-200 transition-all shadow-sm mr-1" title="Run strict Data Table validation checks">
                             <span className="mr-1">🛡️</span>Check Syntax
                         </button>
-                        <button onClick={handleCalculateMissingGeometry} className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded text-xs font-semibold border border-transparent hover:border-blue-200 transition-all shadow-sm" title="Calculate missing bores, midpoints, and vectors">
-                            <span className="mr-1">📐</span>Calc Missing Geo
+                        <button onClick={handleSyntaxFix} className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 rounded text-xs font-semibold border border-transparent hover:border-indigo-200 transition-all shadow-sm" title="Standardize strings and fix basic syntax errors">
+                            <span className="mr-1">🔧</span>Syntax Fix
                         </button>
                     </>
                 )}

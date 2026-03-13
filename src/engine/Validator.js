@@ -67,10 +67,11 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
         if (shouldRun('V12')) {
             let hasCA = false;
             for (const k of Object.keys(row.ca || {})) {
-                if (row.ca[k] !== undefined && row.ca[k] !== null && row.ca[k] !== "") hasCA = true;
+                const caNum = parseInt(k, 10);
+                if (caNum >= 1 && caNum <= 10 && row.ca[k] !== undefined && row.ca[k] !== null && row.ca[k] !== "") hasCA = true;
             }
             if (hasCA) {
-                logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V12", tier: 4, row: ri, message: "ERROR [V12]: SUPPORT must not have CAs." });
+                logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V12", tier: 4, row: ri, message: "ERROR [V12]: SUPPORT must not have CA1 through CA10." });
                 errorCount++;
             }
         }
@@ -102,7 +103,7 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
         }
     }
 
-    // V15: Coordinate Continuity
+    // V15: Coordinate Continuity (Only in Stage 2/3)
     if (stage !== "1" && shouldRun('V15') && type !== "SUPPORT" && row._rowIndex > 1) {
         const prevRow = dataTable.find(r => r._rowIndex === row._rowIndex - 1);
         if (prevRow && prevRow.ep2 && row.ep1 && !vec.approxEqual(row.ep1, prevRow.ep2, 1.0)) {
@@ -111,6 +112,9 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
             warnCount++;
         }
     }
+
+    // If we are in Stage 2 or beyond, DO NOT run the basic syntax V-rules, EXCEPT V15.
+    if (stage !== "1") continue;
 
     // V1: No (0,0,0) coords
     const checkV1 = (pt, name) => {

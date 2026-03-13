@@ -22,8 +22,35 @@ export function runDataProcessor(dataTable, config, logger) {
     const t = row.type || "";
 
     // Step 3: Fill Identifiers
-    if (!row.csvSeqNo) { row.csvSeqNo = seq; markModified(row, "csvSeqNo", "Calculated"); }
-    if (!row.refNo) { row.refNo = String(row.csvSeqNo); markModified(row, "refNo", "Calculated"); }
+    // Try to extract RefNo and SeqNo from text field if available
+    let extractedRefNo = null;
+    let extractedSeqNo = null;
+    if (row.text && typeof row.text === 'string') {
+         const textUpper = row.text.toUpperCase();
+         // e.g. "RefNo:=67130482/1666_pipe" or "REF NO.: 123"
+         const refMatch = row.text.match(/(?:RefNo|REF\s*NO\.?)\s*[:=]\s*=?([^\s,]+)/i);
+         if (refMatch && refMatch[1]) extractedRefNo = refMatch[1].trim();
+
+         const seqMatch = textUpper.match(/SEQ\s*NO\.?\s*[:=]\s*=?(\d+)/i);
+         if (seqMatch && seqMatch[1]) extractedSeqNo = parseInt(seqMatch[1], 10);
+    }
+
+    if (extractedSeqNo && !row.csvSeqNo) {
+         row.csvSeqNo = extractedSeqNo;
+         markModified(row, "csvSeqNo", "Extracted from TEXT");
+    } else if (!row.csvSeqNo) {
+         row.csvSeqNo = seq;
+         markModified(row, "csvSeqNo", "Calculated");
+    }
+
+    if (extractedRefNo && !row.refNo) {
+         row.refNo = extractedRefNo;
+         markModified(row, "refNo", "Extracted from TEXT");
+    } else if (!row.refNo) {
+         row.refNo = String(row.csvSeqNo);
+         markModified(row, "refNo", "Calculated");
+    }
+
     if (!row.ca) row.ca = {};
     if (!row.ca[97]) { row.ca[97] = `=${row.refNo}`; markModified(row, "ca97", "Calculated"); }
     if (!row.ca[98]) { row.ca[98] = row.csvSeqNo; markModified(row, "ca98", "Calculated"); }
