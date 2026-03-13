@@ -80,7 +80,9 @@ function MainApp() {
 
         {/* Tab Content */}
         <div className="bg-white rounded shadow-sm min-h-[500px] border border-slate-200">
-          {activeTab === 'data' && <DataTableTab />}
+          {activeTab === 'stage1' && <DataTableTab stage="1" />}
+          {activeTab === 'stage2' && <DataTableTab stage="2" />}
+          {activeTab === 'stage3' && <DataTableTab stage="3" />}
           {activeTab === 'core' && <div className="p-4"><CoreProcessorTab /></div>}
           {activeTab === 'canvas' && <div className="p-2"><CanvasTab /></div>}
           {activeTab === 'config' && <ConfigTab />}
@@ -88,7 +90,8 @@ function MainApp() {
         </div>
       </main>
 
-      <StatusBar />
+      {/* Only show status bar when relevant, or make it dynamic based on tab */}
+      {activeTab === 'stage2' && <StatusBar />}
     </div>
   );
 }

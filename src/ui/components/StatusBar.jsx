@@ -20,10 +20,10 @@ export function StatusBar() {
   React.useEffect(() => {
     const handleManualValidation = () => {
         const logger = createLogger();
-        const results = runValidationChecklist(state.dataTable, state.config, logger);
+        const results = runValidationChecklist(state.stage2Data, state.config, logger);
         logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
 
-        let updatedTable = [...state.dataTable];
+        let updatedTable = [...state.stage2Data];
         logger.getLog().forEach(entry => {
           if (entry.row && entry.tier) {
             const row = updatedTable.find(r => r._rowIndex === entry.row);
@@ -38,18 +38,18 @@ export function StatusBar() {
           }
         });
 
-        dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+        dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
         alert(`Validation Complete: ${results.errorCount} Errors, ${results.warnCount} Warnings found.`);
     };
 
     window.addEventListener('RUN_VALIDATOR_MANUAL', handleManualValidation);
     return () => window.removeEventListener('RUN_VALIDATOR_MANUAL', handleManualValidation);
-  }, [state.dataTable, state.config, dispatch]);
+  }, [state.stage2Data, state.config, dispatch]);
 
   React.useEffect(() => {
     const handleSync = (e) => {
         const { rowIndex, status } = e.detail;
-        let updatedTable = state.dataTable.map(r =>
+        let updatedTable = state.stage2Data.map(r =>
             r._rowIndex === rowIndex ? { ...r, _fixApproved: status } : r
         );
 
@@ -62,16 +62,16 @@ export function StatusBar() {
             setZustandData(updatedTable); // Ensure 3D updates immediately
         }
 
-        dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+        dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
     };
     window.addEventListener('zustand-fix-status-changed', handleSync);
     return () => window.removeEventListener('zustand-fix-status-changed', handleSync);
-  }, [state.dataTable, state.smartFix.chains, state.config, dispatch, setZustandData]);
+  }, [state.stage2Data, state.smartFix.chains, state.config, dispatch, setZustandData]);
 
   const handleSmartFix = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
     const logger = createLogger();
-    const result = runSmartFix(state.dataTable, state.config, logger);
+    const result = runSmartFix(state.stage2Data, state.config, logger);
 
     // Save logs to state
     logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
@@ -84,7 +84,7 @@ export function StatusBar() {
     const logger = createLogger();
 
     // For Group 2 / proposals (from PcfTopologyGraph2), applying fixes means mutating the geometries that were approved.
-    let tableToProcess = state.dataTable;
+    let tableToProcess = state.stage2Data;
     if (useStore.getState().proposals.length > 0) {
         tableToProcess = applyApprovedMutations(tableToProcess, useStore.getState().proposals, logger);
     }
@@ -97,31 +97,31 @@ export function StatusBar() {
     dispatch({ type: "FIXES_APPLIED", payload: result });
   };
 
-  const isDataLoaded = state.dataTable.length > 0;
+  const isDataLoaded = state.stage2Data && state.stage2Data.length > 0;
   const isRunning = state.smartFix.status === "running";
   const isApplying = state.smartFix.status === "applying";
   const passNum = state.smartFix.pass || 1;
   const isSecondPassReady = state.smartFix.status === "applied" && state.config.pteMode?.autoMultiPassMode;
 
   // Apply Fixes should be enabled if any row is approved and we're not currently applying
-  const hasApprovedFixes = state.dataTable.some(r => r._fixApproved === true);
+  const hasApprovedFixes = state.stage2Data && state.stage2Data.some(r => r._fixApproved === true);
   const canApplyFixes = hasApprovedFixes && !isApplying;
 
   const handleSecondPass = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
     const logger = createLogger();
     // Before running we flag the table that it's pass 2
-    let pass2Table = state.dataTable.map(r => ({ ...r, _currentPass: 2, _passApplied: r._passApplied || 2 }));
+    let pass2Table = state.stage2Data.map(r => ({ ...r, _currentPass: 2, _passApplied: r._passApplied || 2 }));
     const result = runSmartFix(pass2Table, { ...state.config, currentPass: 2 }, logger);
     logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
     // Update data table explicitly so UI picks up the pass 2 prefixes
-    dispatch({ type: "SET_DATA_TABLE", payload: pass2Table });
+    dispatch({ type: "SET_STAGE_2_DATA", payload: pass2Table });
     dispatch({ type: "SMART_FIX_COMPLETE", payload: { ...result, pass: 2 } });
   };
 
   const handleExportExcel = async () => {
     try {
-      await exportToExcel(state.dataTable);
+      await exportToExcel(state.stage2Data);
       dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Exported Data Table to Excel." }});
     } catch (err) {
       alert("Error exporting Excel: " + err.message);
@@ -129,7 +129,7 @@ export function StatusBar() {
   };
 
   const handleExportPCF = () => {
-    const text = generatePCFText(state.dataTable, state.config);
+    const text = generatePCFText(state.stage2Data, state.config);
     const blob = new Blob([text], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -146,7 +146,7 @@ export function StatusBar() {
   const handleExecute = () => {
       setShowModal(false);
       const logger = createLogger();
-      let processedTable = runDataProcessor(state.dataTable, state.config, logger);
+      let processedTable = runDataProcessor(state.stage2Data, state.config, logger);
       runValidationChecklist(processedTable, state.config, logger);
 
       if (runGroup === 'group2') {
@@ -169,7 +169,7 @@ export function StatusBar() {
           }
         }
       });
-      dispatch({ type: "SET_DATA_TABLE", payload: processedTable });
+      dispatch({ type: "SET_STAGE_2_DATA", payload: processedTable });
       setZustandData(processedTable);
       alert("Processing & Validation complete! Check Debug tab and Data Table for results.");
   };

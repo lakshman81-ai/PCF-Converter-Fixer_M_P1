@@ -3,6 +3,9 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore } from '../../store/useStore';
+import { useAppContext } from '../../store/AppContext';
+import { applyFixes } from '../../engine/FixApplicator';
+import { createLogger } from '../../utils/Logger';
 
 // ----------------------------------------------------
 // Performance Optimized Instanced Pipes Rendering
@@ -104,8 +107,34 @@ const ProposalOverlay = ({ proposal }) => {
   const [clicked, setClicked] = useState(false);
   const [hovered, setHovered] = useState(false);
   const setProposalStatus = useStore(state => state.setProposalStatus);
+  const setTable = useStore(state => state.setDataTable);
+  const { state: appState, dispatch } = useAppContext();
 
   const { elementA, elementB, description, vector, _fixApproved } = proposal;
+
+  const handleApproveAndMutate = (e) => {
+      e.stopPropagation();
+      setProposalStatus(elementA._rowIndex, true);
+
+      const updatedTable = appState.stage2Data.map(r =>
+          r._rowIndex === elementA._rowIndex ? { ...r, _fixApproved: true } : r
+      );
+
+      const logger = new Logger();
+      const result = applyFixes(updatedTable, appState.smartFix.chains, appState.config, logger.getLog ? logger : { push: () => {}, getLog: () => [] });
+      const tableToApply = result.updatedTable || result.table || result;
+
+      dispatch({ type: "SET_STAGE_2_DATA", payload: tableToApply });
+      dispatch({ type: "SET_SMART_FIX_STATUS", status: "applied" });
+      setTable(tableToApply);
+      setClicked(false);
+  };
+
+  const handleReject = (e) => {
+      e.stopPropagation();
+      setProposalStatus(elementA._rowIndex, false);
+      setClicked(false);
+  };
 
   if (!elementA.ep2 || !elementB.ep1) return null;
 
@@ -163,15 +192,15 @@ const ProposalOverlay = ({ proposal }) => {
                 className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
                     _fixApproved === true ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-700 hover:bg-green-600'
                 }`}
-                onClick={(e) => { e.stopPropagation(); setProposalStatus(elementA._rowIndex, true); }}
+                onClick={handleApproveAndMutate}
               >
-                ✓ Approve
+                ✓ Approve & Snap
               </button>
               <button
                 className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
                     _fixApproved === false ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-700 hover:bg-red-600'
                 }`}
-                onClick={(e) => { e.stopPropagation(); setProposalStatus(elementA._rowIndex, false); }}
+                onClick={handleReject}
               >
                 ✗ Reject
               </button>

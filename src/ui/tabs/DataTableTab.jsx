@@ -2,46 +2,57 @@ import React from 'react';
 import { useAppContext } from '../../store/AppContext';
 import { useStore } from '../../store/useStore';
 
-export function DataTableTab() {
+export function DataTableTab({ stage = "1" }) {
   const { state, dispatch } = useAppContext();
-  const { dataTable } = state;
   const [filterAction, setFilterAction] = React.useState('ALL');
 
+  let currentData;
+  if (stage === "1") currentData = state.dataTable;
+  else if (stage === "2") currentData = state.stage2Data;
+  else if (stage === "3") currentData = state.stage3Data;
+
+  const dataTable = currentData;
+
   const handleApprove = (rowIndex, approve) => {
-      const updatedTable = [...state.dataTable];
+      const updatedTable = [...dataTable];
       const rowIdx = updatedTable.findIndex(r => r._rowIndex === rowIndex);
       if (rowIdx > -1) {
           updatedTable[rowIdx] = { ...updatedTable[rowIdx], _fixApproved: approve };
-          dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+          if (stage === "1") dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+          if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+          if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
           // Ensure Zustand proposals match this state so 3D canvas popups turn green
-          useStore.getState().setProposalStatus(rowIndex, approve);
+          if (stage === "2") useStore.getState().setProposalStatus(rowIndex, approve);
       }
   };
 
   const handleAutoApproveAll = () => {
-      const updatedTable = state.dataTable.map(r => {
+      const updatedTable = dataTable.map(r => {
           if (r.fixingActionTier && r.fixingActionTier <= 2) {
-              // Sync to Zustand 3D proposals instantly
-              useStore.getState().setProposalStatus(r._rowIndex, true);
+              if (stage === "2") useStore.getState().setProposalStatus(r._rowIndex, true);
               return { ...r, _fixApproved: true };
           }
           return r;
       });
-      dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+      if (stage === "1") dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+      if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+      if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
   };
 
   const handleIgnoreAllWarnings = () => {
-      const updatedTable = state.dataTable.map(r => {
+      const updatedTable = dataTable.map(r => {
           if (r.fixingAction && r.fixingActionRuleId && r.fixingAction.includes('WARNING')) {
               return { ...r, _fixIgnored: true };
           }
           return r;
       });
-      dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+      if (stage === "1") dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+      if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+      if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
   };
 
   const handleCalculateMissingGeometry = () => {
-       const updatedTable = state.dataTable.map((row, index, arr) => {
+       const updatedTable = dataTable.map((row, index, arr) => {
             const r = { ...row };
             // Auto inherit bore from previous row if missing
             if ((!r.bore || r.bore === "") && index > 0) {
@@ -80,9 +91,27 @@ export function DataTableTab() {
 
             return r;
        });
-       dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+       if (stage === "1") dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+       if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+       if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
+
        // Trigger a sync so StatusBar knows table changed if needed
-       window.dispatchEvent(new CustomEvent('zustand-force-sync'));
+       if (stage === "2") window.dispatchEvent(new CustomEvent('zustand-force-sync'));
+  };
+
+  const handlePullStage1 = () => {
+      // Pulls Data Table from Stage 1 into Stage 2 minus fixingAction
+      const stage1Data = state.dataTable.map(r => {
+          const newRow = { ...r };
+          delete newRow.fixingAction;
+          delete newRow.fixingActionTier;
+          delete newRow.fixingActionRuleId;
+          delete newRow._fixApproved;
+          delete newRow._passApplied;
+          return newRow;
+      });
+      dispatch({ type: "SET_STAGE_2_DATA", payload: stage1Data });
+      alert("Successfully pulled Stage 1 data into Stage 2.");
   };
 
   const handleValidateSyntax = () => {
@@ -97,8 +126,8 @@ export function DataTableTab() {
     let errPass1 = 0, warnPass1 = 0;
     let errPass2 = 0, warnPass2 = 0;
 
-    if (state.dataTable) {
-        state.dataTable.forEach(r => {
+    if (dataTable) {
+        dataTable.forEach(r => {
           if (r.fixingAction) {
             if (r._fixApproved === true) approved++;
             else if (r._fixApproved === false) rejected++;
@@ -131,6 +160,20 @@ export function DataTableTab() {
      if (filterAction === 'REJECTED') return dataTable.filter(r => r._fixApproved === false);
      return dataTable;
   }, [dataTable, filterAction]);
+
+  if (stage === "3" && (!currentData || currentData.length === 0)) {
+      return (
+          <div className="flex flex-col items-center justify-center h-[calc(100vh-12rem)] text-slate-500 p-8">
+              <h2 className="text-xl font-bold mb-2 text-slate-700">Stage 3: Final Checking</h2>
+              <p className="max-w-xl text-center">This is the final validation stage where VXX syntax rules and RXX topological rules are executed one last time before export to ensure no regressions were introduced during Stage 2 fixing.</p>
+              <button onClick={() => {
+                  dispatch({ type: "SET_STAGE_3_DATA", payload: state.stage2Data });
+              }} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded font-medium shadow">
+                  Pull Data from Stage 2
+              </button>
+          </div>
+      );
+  }
 
   if (!dataTable || dataTable.length === 0) {
     return (
@@ -245,6 +288,12 @@ export function DataTableTab() {
             </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-white px-2 py-1 rounded border border-slate-300 shadow-sm">
+            {stage === "2" && (
+                <button onClick={handlePullStage1} className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded text-xs font-bold border border-amber-200 transition-all shadow-sm mr-2 whitespace-nowrap">
+                    📥 Pull from Stage 1
+                </button>
+            )}
+
             <div className="flex items-center space-x-2 border-r border-slate-200 pr-3 mr-1">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FILTER:</span>
                 <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="text-sm bg-slate-50 text-slate-700 border-none outline-none cursor-pointer py-1 px-1 rounded font-medium">
@@ -259,18 +308,31 @@ export function DataTableTab() {
 
             <div className="flex items-center space-x-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 hidden md:inline-block">Tools:</span>
-                <button onClick={handleValidateSyntax} className="px-2.5 py-1 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-700 rounded text-xs font-semibold border border-transparent hover:border-teal-200 transition-all shadow-sm" title="Run strict Data Table validation checks">
-                    <span className="mr-1">🛡️</span>Validate Syntax
-                </button>
-                <button onClick={handleCalculateMissingGeometry} className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded text-xs font-semibold border border-transparent hover:border-blue-200 transition-all shadow-sm" title="Calculate missing bores, midpoints, and vectors">
-                    <span className="mr-1">📐</span>Calc Geometry
-                </button>
-                <button onClick={handleIgnoreAllWarnings} className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-800 rounded text-xs font-semibold border border-transparent hover:border-slate-300 transition-all shadow-sm" title="Acknowledge and dismiss all current warnings">
-                    <span className="mr-1">👁️‍🗨️</span>Ignore Warnings
-                </button>
-                <button onClick={handleAutoApproveAll} className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-bold border border-indigo-200 transition-all shadow-sm ml-2" title="Approve all Tier 1/2 automated fixes">
-                    <span className="mr-1">⚡</span>Auto Approve (&lt;25mm)
-                </button>
+
+                {stage === "1" && (
+                    <>
+                        <button onClick={handleValidateSyntax} className="px-2.5 py-1 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-700 rounded text-xs font-semibold border border-transparent hover:border-teal-200 transition-all shadow-sm" title="Run strict Data Table validation checks">
+                            <span className="mr-1">🛡️</span>Check Syntax
+                        </button>
+                        <button onClick={handleCalculateMissingGeometry} className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded text-xs font-semibold border border-transparent hover:border-blue-200 transition-all shadow-sm" title="Calculate missing bores, midpoints, and vectors">
+                            <span className="mr-1">📐</span>Calc Missing Geo
+                        </button>
+                    </>
+                )}
+
+                {(stage === "2" || stage === "3") && (
+                    <>
+                        <button onClick={handleValidateSyntax} className="px-2.5 py-1 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-700 rounded text-xs font-semibold border border-transparent hover:border-teal-200 transition-all shadow-sm" title="Run strict Data Table validation checks">
+                            <span className="mr-1">🛡️</span>Validate Rules
+                        </button>
+                        <button onClick={handleIgnoreAllWarnings} className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-800 rounded text-xs font-semibold border border-transparent hover:border-slate-300 transition-all shadow-sm" title="Acknowledge and dismiss all current warnings">
+                            <span className="mr-1">👁️‍🗨️</span>Ignore Warnings
+                        </button>
+                        <button onClick={handleAutoApproveAll} className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-bold border border-indigo-200 transition-all shadow-sm ml-2" title="Approve all Tier 1/2 automated fixes">
+                            <span className="mr-1">⚡</span>Auto Approve (&lt;25mm)
+                        </button>
+                    </>
+                )}
             </div>
         </div>
       </div>

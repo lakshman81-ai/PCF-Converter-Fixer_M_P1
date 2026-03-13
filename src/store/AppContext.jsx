@@ -1,7 +1,9 @@
 import React, { createContext, useReducer, useContext } from 'react';
 
 const initialState = {
-  dataTable: [],
+  dataTable: [], // Will now serve as stage 1 data table source of truth to avoid breaking legacy code where possible
+  stage2Data: [], // Geometry focus data table
+  stage3Data: [], // Final check data table
   config: {
     decimals: 4,
     angleFormat: "degrees",
@@ -71,7 +73,12 @@ const initialState = {
 function reducer(state, action) {
   switch (action.type) {
     case "SET_DATA_TABLE":
+      // We assume SET_DATA_TABLE maps to stage 1 (Syntax base) on import
       return { ...state, dataTable: action.payload, history: [] }; // Reset history on new file
+    case "SET_STAGE_2_DATA":
+      return { ...state, stage2Data: action.payload, history: [] };
+    case "SET_STAGE_3_DATA":
+      return { ...state, stage3Data: action.payload };
     case "SET_CONFIG":
       return { ...state, config: { ...state.config, ...action.payload } };
     case "ADD_LOG":
