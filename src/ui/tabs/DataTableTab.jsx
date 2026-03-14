@@ -398,9 +398,14 @@ export function DataTableTab({ stage = "1" }) {
                      )}
                 </div>
                 {row._passApplied === undefined && !row._isPassiveFix && (
-                    <div className="mt-2 flex space-x-2">
+                     <div className="flex space-x-2 mt-2 items-center">
                         <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-100 text-green-800 border border-green-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✓ Approve</button>
                         <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-200 text-slate-500 border border-slate-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✗ Reject</button>
+                        {row.fixingAction && row.fixingAction.includes('Dropped suggestion') && (
+                            <span className="text-[10px] text-orange-600 ml-2 font-medium italic whitespace-nowrap" title="This suggestion scored too low and was dropped">
+                                Dropped suggestion
+                            </span>
+                        )}
                     </div>
                 )}
             </>

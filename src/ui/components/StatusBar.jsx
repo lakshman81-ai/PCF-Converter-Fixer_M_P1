@@ -252,8 +252,8 @@ export function StatusBar({ activeTab, activeStage }) {
       </div>
 
       <div className="flex items-center space-x-2">
-        {/* Only show these action buttons if we are on Tab 2 (Stage 2 / 3D Canvas) */}
-        {activeTab === 'tab2' && (
+        {/* Only show these action buttons if we are on Stage 2 Data Table, or the 3D Canvas */}
+        {(activeTab === 'canvas' || (activeTab === 'data' && activeStage === 2)) && (
             <>
                 <button
                   onClick={() => {
