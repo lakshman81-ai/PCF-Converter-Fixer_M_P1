@@ -9,9 +9,10 @@ import { runDataProcessor } from '../../engine/DataProcessor';
 import { PcfTopologyGraph2, applyApprovedMutations } from '../../engine/PcfTopologyGraph2';
 import { useStore } from '../../store/useStore';
 
-export function StatusBar() {
+export function StatusBar({ activeTab, activeStage }) {
   const [showModal, setShowModal] = React.useState(false);
   const [runGroup, setRunGroup] = React.useState('group1');
+  const [isStatusExpanded, setIsStatusExpanded] = React.useState(false);
   const { state, dispatch } = useAppContext();
   const setZustandData = useStore(state => state.setDataTable);
   const setZustandProposals = useStore(state => state.setProposals);
@@ -166,12 +167,38 @@ export function StatusBar() {
         </div>
       )}
 
-    <div className="fixed bottom-0 left-0 right-0 h-12 bg-slate-800 text-white flex items-center justify-between px-4 text-sm z-50">
-      <div className="flex items-center space-x-4">
-        <span className="text-slate-300 mr-2 max-w-[400px] truncate" title={state.statusMessage || "Ready"}>
-            {state.statusMessage || "Ready"}
-        </span>
+    <div className="fixed bottom-0 left-0 right-0 h-12 bg-slate-800 text-white flex items-center justify-between px-4 text-sm z-50 shadow-lg">
+      <div className="flex items-center space-x-2 relative h-full">
+        {/* Collapsible Status Container */}
+        <div
+            className={`absolute bottom-0 left-0 bg-slate-700 border-t border-r border-slate-600 rounded-tr-lg shadow-xl transition-all duration-300 ease-in-out flex flex-col ${isStatusExpanded ? 'h-48 w-[500px] p-4' : 'h-12 w-[300px] px-3 py-0 flex-row items-center cursor-pointer hover:bg-slate-600'}`}
+            onClick={() => !isStatusExpanded && setIsStatusExpanded(true)}
+        >
+            <div className="flex justify-between items-center w-full mb-2">
+                <span className={`font-mono text-slate-300 ${isStatusExpanded ? 'text-sm' : 'text-xs truncate'}`}>
+                    {state.statusMessage || "Ready"}
+                </span>
+                {isStatusExpanded && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setIsStatusExpanded(false); }}
+                        className="text-slate-400 hover:text-white"
+                    >
+                        ✕
+                    </button>
+                )}
+            </div>
+            {isStatusExpanded && (
+                <div className="flex-1 overflow-y-auto mt-2 text-xs text-slate-400 space-y-1">
+                    {/* If we had a message history, we'd map it here. For now just show the current message wrapped. */}
+                    <div className="bg-slate-800/50 p-2 rounded whitespace-pre-wrap font-mono">
+                        {state.statusMessage || "System is idle."}
+                    </div>
+                </div>
+            )}
+        </div>
 
+        {/* Push content past the status box when collapsed */}
+        <div className="ml-[320px] flex items-center space-x-2">
         {(!state.dataTable || state.dataTable.length === 0) && (
             <button
                 onClick={() => {
@@ -217,53 +244,59 @@ export function StatusBar() {
             setShowModal(true);
           }}
           disabled={!isDataLoaded}
-          className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50"
+          className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50 h-8 flex items-center"
         >
           Run Phase 1 Validator (Only Pipe filling/Trimming) ▶
         </button>
+        </div>
       </div>
 
-      <div className="flex items-center space-x-4">
-        <button
-          onClick={() => {
-            dispatch({ type: "UNDO_FIXES" });
-            // ensure Zustand syncs with the undone state
-            if (state.history.length > 0) {
-              const prevTable = state.history[state.history.length - 1];
-              setZustandData(prevTable);
-            }
-          }}
-          disabled={state.history.length === 0}
-          className="px-4 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded font-medium disabled:opacity-50 transition-colors text-white"
-          title="Undo last applied fixes"
-        >
-          ↶ Undo
-        </button>
+      <div className="flex items-center space-x-2">
+        {/* Only show these action buttons if we are on Tab 2 (Stage 2 / 3D Canvas) */}
+        {activeTab === 'tab2' && (
+            <>
+                <button
+                  onClick={() => {
+                    dispatch({ type: "UNDO_FIXES" });
+                    // ensure Zustand syncs with the undone state
+                    if (state.history.length > 0) {
+                      const prevTable = state.history[state.history.length - 1];
+                      setZustandData(prevTable);
+                    }
+                  }}
+                  disabled={state.history.length === 0}
+                  className="px-4 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded font-medium disabled:opacity-50 transition-colors text-white h-full"
+                  title="Undo last applied fixes"
+                >
+                  ↶ Undo
+                </button>
 
-        <button
-          onClick={handleSmartFix}
-          disabled={!isDataLoaded || isRunning}
-          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded font-medium disabled:opacity-50 transition-colors"
-        >
-          {isRunning ? "Analyzing..." : "Smart Fix 🔧"}
-        </button>
+                <button
+                  onClick={handleSmartFix}
+                  disabled={!isDataLoaded || isRunning}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded font-medium disabled:opacity-50 transition-colors h-full"
+                >
+                  {isRunning ? "Analyzing..." : "Smart Fix 🔧"}
+                </button>
 
-        <button
-          onClick={handleApplyFixes}
-          disabled={!canApplyFixes}
-          className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded font-medium disabled:opacity-50 transition-colors mr-2"
-        >
-          {isApplying ? "Applying..." : "Apply Fixes ✓"}
-        </button>
+                <button
+                  onClick={handleApplyFixes}
+                  disabled={!canApplyFixes}
+                  className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded font-medium disabled:opacity-50 transition-colors h-full"
+                >
+                  {isApplying ? "Applying..." : "Apply Fixes ✓"}
+                </button>
 
-        <button
-          onClick={handleSecondPass}
-          disabled={!isSecondPassReady}
-          className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded font-medium disabled:opacity-50 transition-colors"
-          title="Run Second Pass on Non-Pipe components"
-        >
-          🚀 Run Second Pass
-        </button>
+                <button
+                  onClick={handleSecondPass}
+                  disabled={!isSecondPassReady}
+                  className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded font-medium disabled:opacity-50 transition-colors h-full"
+                  title="Run Second Pass on Non-Pipe components"
+                >
+                  🚀 Run Second Pass
+                </button>
+            </>
+        )}
 
         <span className="text-slate-400 font-mono text-xs">{verString}</span>
       </div>

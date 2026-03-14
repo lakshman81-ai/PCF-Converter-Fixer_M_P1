@@ -78,7 +78,7 @@ function MainApp() {
       </main>
 
       {/* Show status bar everywhere so the mock data button is always accessible */}
-      <StatusBar />
+      <StatusBar activeTab={activeTab} activeStage={activeStage} />
     </div>
   );
 }

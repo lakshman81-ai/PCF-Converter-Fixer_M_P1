@@ -50,6 +50,7 @@ const InstancedPipes = () => {
     });
 
     meshRef.current.instanceMatrix.needsUpdate = true;
+    meshRef.current.computeBoundingSphere();
   }, [pipes, dummy]);
 
   const [selectedGeom, setSelectedGeom] = useState(null);
@@ -234,9 +235,14 @@ const ProposalOverlay = ({ proposal }) => {
       {/* Visual Indicator of Proposal status instead of HTML popups */}
       {clicked && (
          <Html position={[midX, midY, midZ]} center zIndexRange={[100, 0]}>
-           <div className="bg-slate-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap border border-slate-700 shadow-lg pointer-events-none">
-             {description}
-           </div>
+             <div className="bg-slate-900 text-white px-3 py-2 rounded text-xs whitespace-nowrap border border-slate-700 shadow-lg pointer-events-auto flex flex-col gap-2">
+                 <div className="font-semibold text-slate-300 border-b border-slate-700 pb-1 mb-1">Proposed Fix</div>
+                 <div>{description}</div>
+                 <div className="flex gap-2 mt-1">
+                     <button className="flex-1 bg-green-600 hover:bg-green-500 text-white text-[10px] py-1 px-2 rounded" onClick={handleApproveAndMutate}>Approve</button>
+                     <button className="flex-1 bg-red-600 hover:bg-red-500 text-white text-[10px] py-1 px-2 rounded" onClick={handleReject}>Reject</button>
+                 </div>
+             </div>
          </Html>
       )}
     </group>
@@ -325,9 +331,14 @@ const IssuesPanel = () => {
                         </div>
                         <p className={`text-xs mt-1 mb-2 line-clamp-2 ${prop._fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-400'}`} title={prop.description}>{prop.description}</p>
 
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                             <button className="flex-1 bg-green-700 hover:bg-green-600 text-white text-xs py-1 rounded" onClick={(e) => handleApprove(e, prop)}>Approve</button>
                             <button className="flex-1 bg-red-700 hover:bg-red-600 text-white text-xs py-1 rounded" onClick={(e) => handleReject(e, prop)}>Reject</button>
+                            {prop.description && prop.description.includes('Dropped suggestion') && (
+                                <span className="text-[10px] text-orange-400 ml-2 italic whitespace-nowrap" title="This suggestion scored too low and was dropped">
+                                    Dropped suggestion
+                                </span>
+                            )}
                         </div>
                     </div>
                 ))}
