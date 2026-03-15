@@ -440,22 +440,22 @@ export function DataTableTab({ stage = "1" }) {
         {actionMsg && (
             <div className={`mt-1 pl-2 border-l-2 ${row._passApplied > 0 ? 'border-green-400 text-green-800' : 'border-amber-400 text-amber-800'}`}>
                  <span className="font-bold mr-1">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
-                 <span className={row._fixApproved === false ? "line-through opacity-70" : ""}>{actionMsg}</span>
+                 <span className={row._fixApproved === false ? "line-through opacity-70 text-blue-600" : ""}>{actionMsg}</span>
                  {row._passApplied === undefined && row._fixApproved === true && !row._isPassiveFix && (
                     <div className="text-[10px] text-green-600 font-bold mt-1">✓ Approved</div>
                  )}
                  {row._passApplied === undefined && row._fixApproved === false && !row._isPassiveFix && (
-                    <div className="text-[10px] text-slate-500 font-bold mt-1">✓ Rejected</div>
+                    <div className="text-[10px] text-blue-600 font-bold mt-1 line-through">✓ Rejected</div>
                  )}
             </div>
         )}
-        {stage !== "1" && row._passApplied === undefined && !row._isPassiveFix && (
+        {stage !== "1" && row._passApplied === undefined && row._fixApproved === undefined && !row._isPassiveFix && (
              <div className="flex space-x-2 mt-2 items-center flex-wrap gap-y-1">
-                <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-100 text-green-800 border border-green-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✓ Approve</button>
-                <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-200 text-slate-500 border border-slate-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✗ Reject</button>
-                {row.fixingActionScore !== undefined && row.fixingActionScore < 10 && (
-                    <span className="text-[10px] text-slate-500 ml-1 font-medium italic" title="This suggestion scored too low and was dropped">
-                        (Score &lt; 10)
+                <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300`}>✓ Approve</button>
+                <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300`}>✗ Reject</button>
+                {row.fixingActionScore !== undefined && (
+                    <span className="text-[10px] text-slate-500 ml-1 font-medium italic" title="Topology Engine Score">
+                        (Score: {Math.round(row.fixingActionScore)}{row.fixingActionScore < 10 ? ' < 10' : ''})
                     </span>
                 )}
             </div>
