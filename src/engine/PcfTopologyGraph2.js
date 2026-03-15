@@ -83,6 +83,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                 if (score < minApprovalScore) {
                     tier = 4; // Drop / Error out
                     description = `[Pass 1] Coordinate discontinuity by ${dist.toFixed(1)}mm.`;
+                    // Do not assign fixType, so no proposal is generated, but the error remains in logs.
                 } else {
                     // BM1 overlaps trimming logic
                     if (A.type === 'PIPE' && B.type === 'PIPE' && dist > 50 && ptA.x > ptB.x) {

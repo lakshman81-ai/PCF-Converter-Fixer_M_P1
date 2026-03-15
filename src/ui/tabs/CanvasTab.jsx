@@ -265,6 +265,13 @@ const IssuesPanel = () => {
         window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x, y, z, dist: 1500 } }));
     };
 
+    const handleFocusRow = (e, row) => {
+        e.stopPropagation();
+        if (!row.ep2 && !row.cp) return;
+        const pt = row.ep2 || row.cp;
+        window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: pt.x, y: pt.y, z: pt.z, dist: 1500 } }));
+    };
+
     const handleApprove = (e, prop) => {
         e.stopPropagation();
         setProposalStatus(prop.elementA._rowIndex, true);
@@ -322,26 +329,36 @@ const IssuesPanel = () => {
                                 row.fixingAction.includes('ERROR') ? 'bg-red-950/60 border-red-700' : 'bg-orange-950/60 border-orange-700'
                             }`}>
                                 <div className="flex justify-between items-start mb-1">
-                                    <span className="font-semibold text-slate-200">Row {row._rowIndex} — {row.type}</span>
-                                    <span className={`text-[10px] px-1 rounded border ${
-                                        row.fixingAction.includes('ERROR') ? 'text-red-400 bg-red-900/30 border-red-800' : 'text-orange-400 bg-orange-900/30 border-orange-800'
-                                    }`}>{row.fixingAction.includes('ERROR') ? 'ERROR' : 'WARN'}</span>
+                                    <span className="font-semibold text-slate-200 flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                        Row {row._rowIndex} — {row.type}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={(e) => handleFocusRow(e, row)} className="text-slate-400 hover:text-white transition-colors" title="Zoom to issue">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                                        </button>
+                                        <span className={`text-[10px] px-1 rounded border ${
+                                            row.fixingAction.includes('ERROR') ? 'text-red-400 bg-red-900/30 border-red-800' : 'text-orange-400 bg-orange-900/30 border-orange-800'
+                                        }`}>{row.fixingAction.includes('ERROR') ? 'ERROR' : 'WARN'}</span>
+                                    </div>
                                 </div>
                                 <p className={`text-xs mb-2 ${row._fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{row.fixingAction}</p>
-                                <div className="flex gap-2">
-                                    <button className={`flex-1 text-white text-xs py-1 rounded transition ${
-                                        row._fixApproved === true ? 'bg-green-700' : 'bg-green-800 hover:bg-green-700'
-                                    }`} onClick={(e) => { e.stopPropagation();
-                                        const t = appState.stage2Data.map(r => r._rowIndex === row._rowIndex ? {...r, _fixApproved: true} : r);
-                                        dispatch({ type: "SET_STAGE_2_DATA", payload: t });
-                                    }}>✓ Acknowledge</button>
-                                    <button className={`flex-1 text-white text-xs py-1 rounded transition ${
-                                        row._fixApproved === false ? 'bg-slate-600' : 'bg-slate-700 hover:bg-slate-600'
-                                    }`} onClick={(e) => { e.stopPropagation();
-                                        const t = appState.stage2Data.map(r => r._rowIndex === row._rowIndex ? {...r, _fixApproved: false} : r);
-                                        dispatch({ type: "SET_STAGE_2_DATA", payload: t });
-                                    }}>✗ Dismiss</button>
-                                </div>
+                                {row._fixApproved === true ? (
+                                    <div className="text-green-500 font-bold text-xs mt-1">✓ Approved</div>
+                                ) : row._fixApproved === false ? (
+                                    <div className="text-blue-500 line-through font-bold text-xs mt-1">✓ Rejected</div>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <button className="flex-1 text-white text-xs py-1 rounded transition bg-green-800 hover:bg-green-700" onClick={(e) => { e.stopPropagation();
+                                            const t = appState.stage2Data.map(r => r._rowIndex === row._rowIndex ? {...r, _fixApproved: true} : r);
+                                            dispatch({ type: "SET_STAGE_2_DATA", payload: t });
+                                        }}>✓ Approve</button>
+                                        <button className="flex-1 text-white text-xs py-1 rounded transition bg-slate-700 hover:bg-slate-600" onClick={(e) => { e.stopPropagation();
+                                            const t = appState.stage2Data.map(r => r._rowIndex === row._rowIndex ? {...r, _fixApproved: false} : r);
+                                            dispatch({ type: "SET_STAGE_2_DATA", payload: t });
+                                        }}>✗ Dismiss</button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </>
@@ -359,12 +376,20 @@ const IssuesPanel = () => {
                                     onClick={() => handleFocusIssue(prop)}
                                 >
                                     <div className="flex justify-between items-start">
-                                        <span className="font-semibold text-slate-200">Row {prop.elementA?._rowIndex} — {prop.elementA?.type}</span>
-                                        {prop.score !== undefined && (
-                                            <span className={`text-[10px] px-1 rounded border ${
-                                                prop.score >= 10 ? 'text-green-400 bg-green-900/30 border-green-800' : 'text-orange-400 bg-orange-900/30 border-orange-800'
-                                            }`}>Score: {prop.score}</span>
-                                        )}
+                                        <span className="font-semibold text-slate-200 flex items-center gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                            Row {prop.elementA?._rowIndex} — {prop.elementA?.type}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={(e) => { e.stopPropagation(); handleFocusIssue(prop); }} className="text-slate-400 hover:text-white transition-colors" title="Zoom to issue">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                                            </button>
+                                            {prop.score !== undefined && (
+                                                <span className={`text-[10px] px-1 rounded border ${
+                                                    prop.score >= 10 ? 'text-green-400 bg-green-900/30 border-green-800' : 'text-orange-400 bg-orange-900/30 border-orange-800'
+                                                }`}>Score: {prop.score}</span>
+                                            )}
+                                        </div>
                                     </div>
                                     <p className={`text-xs mt-1 mb-2 ${
                                         prop._fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-400'
@@ -372,10 +397,16 @@ const IssuesPanel = () => {
                                     {prop.score !== undefined && prop.score < 10 && (
                                         <p className="text-[10px] text-orange-400 italic mb-1">Score {prop.score} &lt; 10</p>
                                     )}
-                                    <div className="flex gap-2 items-center">
-                                        <button className="flex-1 bg-green-700 hover:bg-green-600 text-white text-xs py-1 rounded" onClick={(e) => handleApprove(e, prop)}>✓ Approve</button>
-                                        <button className="flex-1 bg-red-700 hover:bg-red-600 text-white text-xs py-1 rounded" onClick={(e) => handleReject(e, prop)}>✗ Reject</button>
-                                    </div>
+                                    {prop._fixApproved === true ? (
+                                        <div className="text-green-500 font-bold text-xs mt-1">✓ Approved</div>
+                                    ) : prop._fixApproved === false ? (
+                                        <div className="text-blue-500 line-through font-bold text-xs mt-1">✓ Rejected</div>
+                                    ) : (
+                                        <div className="flex gap-2 items-center">
+                                            <button className="flex-1 bg-green-800 hover:bg-green-700 text-white text-xs py-1 rounded transition" onClick={(e) => handleApprove(e, prop)}>✓ Approve</button>
+                                            <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-1 rounded transition" onClick={(e) => handleReject(e, prop)}>✗ Reject</button>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

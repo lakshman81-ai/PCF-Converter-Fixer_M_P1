@@ -26,8 +26,8 @@ export function Header() {
     <header className="bg-slate-900 text-white shadow-md border-b border-slate-700">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center space-x-6">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
-            PCF Validator & Smart Fixer
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent flex items-baseline gap-2">
+            PCF Validator & Smart Fixer <span className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">V0.5b</span>
           </h1>
           <nav className="flex space-x-2">
             <button

@@ -46,13 +46,21 @@ export function StatusBar({ activeTab, activeStage }) {
              if (entry.tier && entry.tier === 3) warnFixes++;
              if (entry.row && entry.tier) {
                  const row = updatedTable.find(r => r._rowIndex === entry.row);
-                 if (row) {
+                 if (row && !row.fixingAction) {
                      row.fixingAction = entry.message;
                      row.fixingActionTier = entry.tier;
                      row.fixingActionRuleId = entry.ruleId;
                      if (entry.score !== undefined) row.fixingActionScore = entry.score;
                  }
              }
+        });
+        proposals.forEach(prop => {
+            const row = updatedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
+            if (row) {
+                row.fixingAction = prop.description;
+                row.fixingActionTier = prop.dist < 25 ? 2 : 3;
+                if (prop.score !== undefined) row.fixingActionScore = prop.score;
+            }
         });
         dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
         setZustandData(updatedTable);
@@ -82,7 +90,9 @@ export function StatusBar({ activeTab, activeStage }) {
         tableToProcess = applyApprovedMutations(tableToProcess, useStore.getState().proposals, logger);
     }
 
-    const result = applyFixes(tableToProcess, state.smartFix.chains, state.config, logger);
+    // `chains` may be undefined if we didn't run runSmartFix (Group 1), but applyFixes expects an iterable.
+    const chainsToProcess = state.smartFix.chains || [];
+    const result = applyFixes(tableToProcess, chainsToProcess, state.config, logger);
 
     logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
 
@@ -96,6 +106,11 @@ export function StatusBar({ activeTab, activeStage }) {
   const isApplying = state.smartFix.status === "applying";
   // Second Pass ready once at least one Apply Fixes has completed
   const isSecondPassReady = (state.smartFix.smartFixPass || 0) >= 1 && !isRunning && !isApplying;
+
+  // Smart Fix should be disabled once clicked, unless we reset it.
+  // We can track if the smartFixPass > 0 (meaning a pass was run) and disable the main Smart Fix button.
+  const hasRunSmartFix = (state.smartFix.smartFixPass || 0) > 0;
+  const canRunSmartFix = isDataLoaded && !isRunning && isValidationDone && !hasRunSmartFix;
 
   // Apply Fixes enabled if any row approved and not currently applying
   const hasApprovedFixes = state.stage2Data && state.stage2Data.some(r => r._fixApproved === true);
@@ -147,9 +162,11 @@ export function StatusBar({ activeTab, activeStage }) {
       // Validation: populates fixingAction with ERROR/WARNING messages — read-only, no coord changes
       runValidationChecklist(processedTable, state.config, logger, "2");
 
+      let finalProposals = [];
       if (runGroup === 'group2') {
           // Generate Zustand proposals only — do NOT apply mutations yet
           const { proposals } = PcfTopologyGraph2(processedTable, state.config, logger);
+          finalProposals = proposals;
           setZustandProposals(proposals);
           // proposals will be applied ONLY when user clicks "Apply Fixes"
       }
@@ -168,6 +185,18 @@ export function StatusBar({ activeTab, activeStage }) {
           }
         }
       });
+
+      // Override fixingAction with proposals from group2 so they show up
+      if (runGroup === 'group2') {
+          finalProposals.forEach(prop => {
+              const row = processedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
+              if (row) {
+                  row.fixingAction = prop.description;
+                  row.fixingActionTier = prop.dist < 25 ? 2 : 3;
+                  if (prop.score !== undefined) row.fixingActionScore = prop.score;
+              }
+          });
+      }
 
       dispatch({ type: "SET_STAGE_2_DATA", payload: processedTable });
       setZustandData(processedTable);
@@ -299,9 +328,9 @@ export function StatusBar({ activeTab, activeStage }) {
 
                 <button
                   onClick={handleSmartFix}
-                  disabled={!isDataLoaded || isRunning || !isValidationDone}
+                  disabled={!canRunSmartFix}
                   className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded font-medium disabled:opacity-50 transition-colors h-full"
-                  title={!isValidationDone ? "Run Phase 1 Validator first" : "Analyse data and generate fix proposals"}
+                  title={!isValidationDone ? "Run Phase 1 Validator first" : hasRunSmartFix ? "Smart Fix already executed" : "Analyse data and generate fix proposals"}
                 >
                   {isRunning ? "Analyzing..." : "Smart Fix 🔧"}
                 </button>
