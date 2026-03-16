@@ -107,6 +107,49 @@ const InstancedPipes = () => {
 };
 
 // ----------------------------------------------------
+// Gap/Proposal Map Pin Visualization
+// ----------------------------------------------------
+const IssueMapPin = () => {
+  const { state: appState } = useAppContext();
+  const proposals = useStore(state => state.proposals);
+  const mapPins = [];
+
+  // Generate pins for validation issues
+  const validationIssues = (appState.stage2Data || []).filter(r =>
+      r.fixingAction && (r.fixingAction.includes('ERROR') || r.fixingAction.includes('WARNING'))
+  );
+
+  validationIssues.forEach(row => {
+      const pt = row.ep2 || row.cp || row.ep1;
+      if (!pt) return;
+      // Check if a proposal already covers this row to avoid double pinning
+      if (proposals.some(p => p.elementA._rowIndex === row._rowIndex)) return;
+
+      mapPins.push({
+          rowIdx: row._rowIndex,
+          pos: [pt.x, pt.y, pt.z],
+          color: row.fixingAction.includes('ERROR') ? '#ef4444' : '#f59e0b',
+          label: `Row ${row._rowIndex}`
+      });
+  });
+
+  return (
+      <group>
+          {mapPins.map((pin, i) => (
+              <Html key={`pin-${i}`} position={pin.pos} center zIndexRange={[100, 0]} distanceFactor={3000}>
+                  <div className="flex flex-col items-center pointer-events-none drop-shadow-lg" style={{ transform: 'translateY(-100%)' }}>
+                      <div className="bg-white border-4 border-red-600 rounded-full px-3 py-1 font-bold text-slate-900 text-lg shadow-xl relative z-10 min-w-max">
+                          {pin.label}
+                      </div>
+                      <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[24px] border-l-transparent border-r-transparent border-t-red-600 -mt-1 relative z-0 filter drop-shadow"></div>
+                  </div>
+              </Html>
+          ))}
+      </group>
+  );
+};
+
+// ----------------------------------------------------
 // Gap/Proposal Visualization
 // ----------------------------------------------------
 const ProposalOverlay = ({ proposal }) => {
@@ -348,16 +391,9 @@ const IssuesPanel = () => {
                                 ) : row._fixApproved === false ? (
                                     <div className="text-blue-500 line-through font-bold text-xs mt-1">✓ Rejected</div>
                                 ) : (
-                                    <div className="flex gap-2">
-                                        <button className="flex-1 text-white text-xs py-1 rounded transition bg-green-800 hover:bg-green-700" onClick={(e) => { e.stopPropagation();
-                                            const t = appState.stage2Data.map(r => r._rowIndex === row._rowIndex ? {...r, _fixApproved: true} : r);
-                                            dispatch({ type: "SET_STAGE_2_DATA", payload: t });
-                                        }}>✓ Approve</button>
-                                        <button className="flex-1 text-white text-xs py-1 rounded transition bg-slate-700 hover:bg-slate-600" onClick={(e) => { e.stopPropagation();
-                                            const t = appState.stage2Data.map(r => r._rowIndex === row._rowIndex ? {...r, _fixApproved: false} : r);
-                                            dispatch({ type: "SET_STAGE_2_DATA", payload: t });
-                                        }}>✗ Dismiss</button>
-                                    </div>
+                                    <>
+                                        {/* Remove inappropriate Approve/Reject buttons for pure validation messages without proposals */}
+                                    </>
                                 )}
                             </div>
                         ))}
@@ -384,29 +420,74 @@ const IssuesPanel = () => {
                                             <button onClick={(e) => { e.stopPropagation(); handleFocusIssue(prop); }} className="text-slate-400 hover:text-white transition-colors" title="Zoom to issue">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
                                             </button>
-                                            {prop.score !== undefined && (
-                                                <span className={`text-[10px] px-1 rounded border ${
-                                                    prop.score >= 10 ? 'text-green-400 bg-green-900/30 border-green-800' : 'text-orange-400 bg-orange-900/30 border-orange-800'
-                                                }`}>Score: {prop.score}</span>
-                                            )}
                                         </div>
                                     </div>
-                                    <p className={`text-xs mt-1 mb-2 ${
-                                        prop._fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-400'
-                                    }`}>{prop.description}</p>
-                                    {prop.score !== undefined && prop.score < 10 && (
-                                        <p className="text-[10px] text-orange-400 italic mb-1">Score {prop.score} &lt; 10</p>
-                                    )}
-                                    {prop._fixApproved === true ? (
-                                        <div className="text-green-500 font-bold text-xs mt-1">✓ Approved</div>
-                                    ) : prop._fixApproved === false ? (
-                                        <div className="text-blue-500 line-through font-bold text-xs mt-1">✓ Rejected</div>
-                                    ) : (
-                                        <div className="flex gap-2 items-center">
-                                            <button className="flex-1 bg-green-800 hover:bg-green-700 text-white text-xs py-1 rounded transition" onClick={(e) => handleApprove(e, prop)}>✓ Approve</button>
-                                            <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-1 rounded transition" onClick={(e) => handleReject(e, prop)}>✗ Reject</button>
-                                        </div>
-                                    )}
+
+                                    {(() => {
+                                        let validationMsg = '';
+                                        let actionMsg = prop.description || "";
+
+                                        const passMatch = actionMsg.match(/^\[(Pass\s*\w+)\]/i);
+                                        let passPrefix = "[1st Pass]";
+                                        if (passMatch) {
+                                            const pMatch = passMatch[1].toLowerCase();
+                                            if (pMatch.includes('pass 2')) passPrefix = "[2nd Pass]";
+                                            else if (pMatch.includes('pass 3')) passPrefix = "[3rd Pass]";
+                                        }
+
+                                        if (actionMsg.includes('[Issue]') && actionMsg.includes('[Proposal]')) {
+                                            const parts = actionMsg.split('\n[Proposal]');
+                                            validationMsg = parts[0].replace(/^\[Pass\s*\w+\]\s*/i, '').replace('[Issue]', '').trim();
+                                            actionMsg = parts[1] ? parts[1].trim() : "";
+                                        }
+
+                                        if (actionMsg) {
+                                            actionMsg = actionMsg.replace(/\(Score:\s*[\d.]+\)/g, '').trim();
+                                            actionMsg = actionMsg.replace(/Score\s*[\d.]+(\s*<\s*\d+)?/gi, '').trim();
+                                            actionMsg = actionMsg.replace(/^[-\s]+|[-\s]+$/g, '').trim();
+                                        }
+                                        if (validationMsg) {
+                                            validationMsg = validationMsg.replace(/^\[Pass\s*\w+\]\s*/i, '').replace('[Issue]', '').trim();
+                                        }
+
+                                        return (
+                                            <div className="mt-2 text-xs font-mono">
+                                                <div className="font-semibold mb-1 flex items-start text-slate-300">
+                                                    <span className="text-slate-500 mr-1 whitespace-nowrap">{passPrefix}</span>
+                                                    <span className="flex-1">
+                                                        {validationMsg && <span className="text-slate-400 mr-1 font-bold">[Issue]</span>}
+                                                        {validationMsg}
+                                                    </span>
+                                                </div>
+                                                {actionMsg && (
+                                                    <div className="mt-1 pl-2 border-l-2 border-amber-500/50 text-amber-200/80">
+                                                        <span className="font-bold mr-1">[Proposal]</span>
+                                                        <span className={prop._fixApproved === false ? "line-through opacity-70 text-slate-500" : ""}>{actionMsg}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
+
+                                    <div className="mt-3">
+                                        {prop._fixApproved === true ? (
+                                            <div className="text-green-500 font-bold text-xs mt-1">✓ Approved</div>
+                                        ) : prop._fixApproved === false ? (
+                                            <div className="text-blue-500 line-through font-bold text-xs mt-1">✓ Rejected</div>
+                                        ) : (
+                                            <div className="flex gap-2 items-center">
+                                                <button className="flex-1 bg-green-800 hover:bg-green-700 text-white text-xs py-1 rounded transition flex items-center justify-center gap-1" onClick={(e) => handleApprove(e, prop)}>
+                                                    ✓ Approve
+                                                </button>
+                                                <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-1 rounded transition flex items-center justify-center gap-1" onClick={(e) => handleReject(e, prop)}>
+                                                    ✗ Reject
+                                                    {prop.score !== undefined && prop.score < 10 && (
+                                                        <span className="text-[10px] text-orange-300 ml-1">(Score {prop.score} &lt; 10)</span>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -552,6 +633,8 @@ export function CanvasTab() {
         {proposals.map((prop, idx) => (
           <ProposalOverlay key={`prop-${idx}`} proposal={prop} />
         ))}
+
+        <IssueMapPin />
 
         <ControlsAutoCenter />
 

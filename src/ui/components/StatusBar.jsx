@@ -124,11 +124,24 @@ export function StatusBar({ activeTab, activeStage }) {
     if (runGroup === 'group2') {
         const { proposals } = PcfTopologyGraph2(pass2Table, { ...state.config, currentPass: 2 }, logger);
         setZustandProposals(proposals);
+
+        // Attach Pass 2 proposals to rows so they render correctly in the DataTable
+        proposals.forEach(prop => {
+            if (prop.pass === 'Pass 2') {
+                const row = pass2Table.find(r => r._rowIndex === prop.elementA._rowIndex);
+                if (row) {
+                    row.fixingAction = prop.description;
+                    row.fixingActionTier = prop.dist < 25 ? 2 : 3;
+                    if (prop.score !== undefined) row.fixingActionScore = prop.score;
+                }
+            }
+        });
+
         logger.getLog().forEach(entry => {
              dispatch({ type: "ADD_LOG", payload: entry });
              if (entry.row && entry.tier) {
                  const row = pass2Table.find(r => r._rowIndex === entry.row);
-                 if (row) {
+                 if (row && !row.fixingAction) {
                      row.fixingAction = entry.message;
                      row.fixingActionTier = entry.tier;
                      row.fixingActionRuleId = entry.ruleId;
@@ -136,6 +149,7 @@ export function StatusBar({ activeTab, activeStage }) {
                  }
              }
         });
+
         dispatch({ type: "SET_STAGE_2_DATA", payload: pass2Table });
         setZustandData(pass2Table);
         dispatch({ type: "SMART_FIX_COMPLETE", payload: { pass: 2, summary: {} } });

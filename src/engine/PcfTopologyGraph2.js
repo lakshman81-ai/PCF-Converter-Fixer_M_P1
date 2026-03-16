@@ -76,52 +76,48 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
             const dist = vec.dist(ptA, ptB);
 
             if (dist > 0) {
-                let fixType = null;
+                let fixType = 'GAP_FILL';
                 let description = "";
                 let tier = 2; // Auto-approved
 
-                if (score < minApprovalScore) {
-                    tier = 4; // Drop / Error out
-                    description = `[Pass 1] ERROR: Coordinate discontinuity by ${dist.toFixed(1)}mm. Score ${score} < ${minApprovalScore}`;
-                    // Do not assign fixType, so no proposal is generated, but the error remains in logs.
+                // BM1 overlaps trimming logic
+                if (A.type === 'PIPE' && B.type === 'PIPE' && dist > 50 && ptA.x > ptB.x) {
+                    fixType = 'TRIM_OVERLAP';
+                    description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Trim overlapping PIPE by ${dist.toFixed(1)}mm.`;
+                    tier = 2;
+                }
+                // BM2 Multi-axis gap translation
+                else if (dist > 25 && isImmutable(B.type)) {
+                    fixType = 'GAP_SNAP_IMMUTABLE_BLOCK';
+                    description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate rigid object block to Flange face by ${dist.toFixed(1)}mm.`;
+                    tier = 3;
+                }
+                else if (A.type === 'PIPE' && B.type === 'PIPE' && dist < 25) {
+                    fixType = 'GAP_STRETCH_PIPE';
+                    description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Stretch adjacent pipes by ${dist.toFixed(1)}mm.`;
+                } else if (dist < 25 && (isImmutable(A.type) || isImmutable(B.type))) {
+                    fixType = 'GAP_SNAP_IMMUTABLE';
+                    description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate immutable object by ${dist.toFixed(1)}mm.`;
                 } else {
-                    // BM1 overlaps trimming logic
-                    if (A.type === 'PIPE' && B.type === 'PIPE' && dist > 50 && ptA.x > ptB.x) {
-                        fixType = 'TRIM_OVERLAP';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Trim overlapping PIPE by ${dist.toFixed(1)}mm. (Score: ${score})`;
-                        tier = 2;
-                    }
-                    // BM2 Multi-axis gap translation
-                    else if (dist > 25 && isImmutable(B.type)) {
-                        fixType = 'GAP_SNAP_IMMUTABLE_BLOCK';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate rigid object block to Flange face by ${dist.toFixed(1)}mm. (Score: ${score})`;
-                        tier = 3;
-                    }
-                    else if (A.type === 'PIPE' && B.type === 'PIPE' && dist < 25) {
-                        fixType = 'GAP_STRETCH_PIPE';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Stretch adjacent pipes by ${dist.toFixed(1)}mm. (Score: ${score})`;
-                    } else if (dist < 25 && (isImmutable(A.type) || isImmutable(B.type))) {
-                        fixType = 'GAP_SNAP_IMMUTABLE';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate immutable object by ${dist.toFixed(1)}mm. (Score: ${score})`;
-                    } else {
-                        fixType = 'GAP_FILL';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Inject PIPE bridging gap of ${dist.toFixed(1)}mm. (Score: ${score})`;
-                        tier = 3;
-                    }
+                    fixType = 'GAP_FILL';
+                    description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Inject PIPE bridging gap of ${dist.toFixed(1)}mm.`;
+                    tier = 3;
                 }
 
-                if (fixType) {
-                    proposals.push({
-                        elementA: A,
-                        elementB: B,
-                        fixType,
-                        dist,
-                        score,
-                        vector: vec.sub(ptB, ptA),
-                        description,
-                        pass: "Pass 1"
-                    });
+                if (score < minApprovalScore) {
+                    tier = 4; // Drop / Error out, but still push proposal so user can see it
                 }
+
+                proposals.push({
+                    elementA: A,
+                    elementB: B,
+                    fixType,
+                    dist,
+                    score,
+                    vector: vec.sub(ptB, ptA),
+                    description,
+                    pass: "Pass 1"
+                });
 
                 logger.push({ stage: "FIXING", type: tier === 4 ? "Error" : "Fix", tier, row: A._rowIndex, message: description, score });
             }
@@ -160,13 +156,13 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
 
                      if (others < 5) {
                          let score = weights.globalAxis + (A.bore && B.bore && (A.bore/B.bore >= 0.5 && A.bore/B.bore <= 2.0) ? weights.sizeRatio : 0);
-                         if (score >= minApprovalScore) {
-                             const description = `[Pass 2] [Issue] Non-sequential gap of ${minDist.toFixed(1)}mm detected.\n[Proposal] Inject PIPE bridging ${minDist.toFixed(1)}mm. (Score: ${score})`;
-                             proposals.push({
-                                elementA: A, elementB: B, fixType: 'GAP_FILL', dist: minDist, score, vector: vec.sub(minPair.b, minPair.a), description, pass: "Pass 2"
-                             });
-                             logger.push({ stage: "FIXING", type: "Fix", tier: 3, row: A._rowIndex, message: description, score });
-                         }
+                         const description = `[Pass 2] [Issue] Non-sequential gap of ${minDist.toFixed(1)}mm detected.\n[Proposal] Inject PIPE bridging ${minDist.toFixed(1)}mm.`;
+                         const tier = score < minApprovalScore ? 4 : 3;
+
+                         proposals.push({
+                            elementA: A, elementB: B, fixType: 'GAP_FILL', dist: minDist, score, vector: vec.sub(minPair.b, minPair.a), description, pass: "Pass 2"
+                         });
+                         logger.push({ stage: "FIXING", type: tier === 4 ? "Error" : "Fix", tier, row: A._rowIndex, message: description, score });
                      }
                 }
             }
@@ -310,7 +306,7 @@ function synthesizeMissingAssemblies(dataTable, config) {
                     ep2: { ...tee.bp },
                     text: `REDUCER, LENGTH=50MM, RefNo:=SYNTH, SeqNo:SYNTH`,
                             ca: { 1: 'SYNTHETIC_REDUCER' },
-                            fixingAction: `[Pass 3A] SYNTHESIZE_REDUCER: Injected between Branch/Tee to bridge gap. (Score: ${score})`,
+                            fixingAction: `[Pass 3A] SYNTHESIZE_REDUCER: Injected between Branch/Tee to bridge gap.`,
                             _passApplied: 3
                 };
 
@@ -382,7 +378,7 @@ function synthesizeMissingAssemblies(dataTable, config) {
                             ep2: { ...ptB },
                             text: `VALVE, LENGTH=${Math.round(dist)}MM, RefNo:=SYNTH, SeqNo:SYNTH`,
                             ca: { 1: 'SYNTHETIC_VALVE' },
-                            fixingAction: `[Pass 3A] SYNTHESIZE_VALVE: Bridged major void ${dist.toFixed(1)}mm. (Score: ${score})`,
+                            fixingAction: `[Pass 3A] SYNTHESIZE_VALVE: Bridged major void ${dist.toFixed(1)}mm.`,
                             _passApplied: 3
                         };
                         newComponents.push({ afterRow: A._rowIndex, comp: synthValve });

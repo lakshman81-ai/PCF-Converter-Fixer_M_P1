@@ -420,8 +420,13 @@ export function DataTableTab({ stage = "1" }) {
              actionMsg = parts.slice(1).join('—').trim();
 
              // Check if actionMsg duplicates validationMsg (e.g. Cleared message)
-             if (validationMsg.includes(actionMsg) || actionMsg.includes(validationMsg)) {
+             if (validationMsg.includes(actionMsg) || actionMsg.includes(validationMsg) || validationMsg.replace(/[^a-zA-Z0-9]/g, '') === actionMsg.replace(/[^a-zA-Z0-9]/g, '')) {
                  actionMsg = ""; // Prevent duplication
+             }
+
+             // Remove repetitive text like "[Cleared] EP1 (0,0,0)" if validationMsg already says "EP1 coordinate is exactly (0,0,0)"
+             if (actionMsg.includes('[Cleared]') && validationMsg.includes('coordinate is exactly')) {
+                 actionMsg = actionMsg.replace(/\[Cleared\]\s*EP[12]?\s*\([^)]+\)/i, '').trim();
              }
          } else {
              validationMsg = row.fixingAction;
@@ -432,8 +437,10 @@ export function DataTableTab({ stage = "1" }) {
     if (actionMsg) {
         // Remove existing standard score patterns e.g. (Score: 10)
         actionMsg = actionMsg.replace(/\(Score:\s*[\d.]+\)/g, '').trim();
-        // Catch inline 'Score 8' format that was persisting
-        actionMsg = actionMsg.replace(/score\s*[\d.]+\s*/gi, '').trim();
+        // Catch inline 'Score 8 < 10' format that was persisting
+        actionMsg = actionMsg.replace(/Score\s*[\d.]+(\s*<\s*\d+)?/gi, '').trim();
+        // Catch any trailing dots or dashes from previous replaces
+        actionMsg = actionMsg.replace(/^[-\s]+|[-\s]+$/g, '').trim();
         if (!hasExplicitTags) {
             actionMsg = actionMsg.replace(/^\[Pass\s*\w+\]\s*/i, '').trim();
             const splitIdx = actionMsg.indexOf(':');
@@ -443,7 +450,13 @@ export function DataTableTab({ stage = "1" }) {
         }
     }
 
-    const passPrefix = (row._passApplied === 2 || (row.fixingAction && row.fixingAction.includes('[Pass 2]'))) ? "[2nd Pass]" : "[1st Pass]";
+    let passPrefix = (row._passApplied === 2 || (row.fixingAction && row.fixingAction.includes('[Pass 2]'))) ? "[2nd Pass]" : "[1st Pass]";
+    if (row.fixingAction && row.fixingAction.includes('[Pass 3A]')) passPrefix = "[3rd Pass]";
+
+    // Final clean up for validationMsg
+    if (validationMsg) {
+        validationMsg = validationMsg.replace(/^\[Pass\s*\w+\]\s*/i, '').replace('[Issue]', '').trim();
+    }
 
     return (
       <div className={`${colors.bg} ${colors.text} border-l-4 ${colors.border} p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-r shadow-sm min-w-[280px]`}>
