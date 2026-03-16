@@ -48,7 +48,15 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
         } else if (["PIPE", "FLANGE", "VALVE", "BEND", "TEE"].includes(type)) {
             if (row._rowIndex > 1) {
                 const prevRow = dataTable.find(r => r._rowIndex === row._rowIndex - 1);
-                if (prevRow && !prevRow.type.includes("REDUCER") && prevRow.bore && row.bore && prevRow.bore !== row.bore) {
+
+                // Fix: Check if this row is actually connected to the previous row before comparing bores.
+                // If it's a branch from somewhere else (like Row 6 connecting to Row 3 branch), the bore might legitimately differ from the sequential previous row.
+                let isSequentiallyConnected = false;
+                if (prevRow && prevRow.ep2 && row.ep1 && (Math.abs(prevRow.ep2.x - row.ep1.x) < 1 && Math.abs(prevRow.ep2.y - row.ep1.y) < 1 && Math.abs(prevRow.ep2.z - row.ep1.z) < 1)) {
+                    isSequentiallyConnected = true;
+                }
+
+                if (isSequentiallyConnected && prevRow && !prevRow.type.includes("REDUCER") && prevRow.bore && row.bore && prevRow.bore !== row.bore) {
                      logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V3", tier: 4, row: ri, message: `ERROR [V3]: PIPE bore changes without being reducer.` });
                      errorCount++;
                 }

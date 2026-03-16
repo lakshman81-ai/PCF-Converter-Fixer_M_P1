@@ -109,397 +109,224 @@ const InstancedPipes = () => {
 // ----------------------------------------------------
 // Gap/Proposal Map Pin Visualization
 // ----------------------------------------------------
-const IssueMapPin = () => {
-  const { state: appState } = useAppContext();
-  const proposals = useStore(state => state.proposals);
-  const mapPins = [];
-
-  // Generate pins for validation issues
-  const validationIssues = (appState.stage2Data || []).filter(r =>
-      r.fixingAction && (r.fixingAction.includes('ERROR') || r.fixingAction.includes('WARNING'))
-  );
-
-  validationIssues.forEach(row => {
-      const pt = row.ep2 || row.cp || row.ep1;
-      if (!pt) return;
-      // Check if a proposal already covers this row to avoid double pinning
-      if (proposals.some(p => p.elementA._rowIndex === row._rowIndex)) return;
-
-      mapPins.push({
-          rowIdx: row._rowIndex,
-          pos: [pt.x, pt.y, pt.z],
-          color: row.fixingAction.includes('ERROR') ? '#ef4444' : '#f59e0b',
-          label: `Row ${row._rowIndex}`
-      });
-  });
-
-  return (
-      <group>
-          {mapPins.map((pin, i) => (
-              <Html key={`pin-${i}`} position={pin.pos} center zIndexRange={[100, 0]} distanceFactor={3000}>
-                  <div className="flex flex-col items-center pointer-events-none drop-shadow-lg" style={{ transform: 'translateY(-100%)' }}>
-                      <div className="bg-white border-4 border-red-600 rounded-full px-3 py-1 font-bold text-slate-900 text-lg shadow-xl relative z-10 min-w-max">
-                          {pin.label}
-                      </div>
-                      <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[24px] border-l-transparent border-r-transparent border-t-red-600 -mt-1 relative z-0 filter drop-shadow"></div>
-                  </div>
-              </Html>
-          ))}
-      </group>
-  );
-};
 
 // ----------------------------------------------------
-// Gap/Proposal Visualization
+// Active Issue Map Pin Visualization
 // ----------------------------------------------------
-const ProposalOverlay = ({ proposal }) => {
-  const [clicked, setClicked] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const setProposalStatus = useStore(state => state.setProposalStatus);
-  const setTable = useStore(state => state.setDataTable);
-  const { state: appState, dispatch } = useAppContext();
+const IssueMapPin = ({ activeIssue }) => {
+  if (!activeIssue) return null;
 
-  const { elementA, elementB, description, _fixApproved, ptA, ptB } = proposal;
+  let pos = null;
+  let label = "";
+  let color = "#ef4444"; // red for validation
 
-  const handleApproveAndMutate = (e) => {
-      e.stopPropagation();
+  if (activeIssue.type === 'validation' && activeIssue.data.ep1) {
+      pos = [activeIssue.data.ep1.x, activeIssue.data.ep1.y, activeIssue.data.ep1.z];
+      label = `Row ${activeIssue.data._rowIndex}`;
+  } else if (activeIssue.type === 'proposal') {
+      const prop = activeIssue.data;
+      if (prop.ptA && prop.ptB) {
+          pos = [(prop.ptA.x + prop.ptB.x)/2, (prop.ptA.y + prop.ptB.y)/2, (prop.ptA.z + prop.ptB.z)/2];
+      } else if (prop.elementA && prop.elementA.ep1) {
+          pos = [prop.elementA.ep1.x, prop.elementA.ep1.y, prop.elementA.ep1.z];
+      }
+      label = `Row ${prop.elementA?._rowIndex}`;
+      color = "#3b82f6"; // blue for proposal
+  }
 
-      // 1. Mark as approved in Zustand visual store
-      setProposalStatus(elementA._rowIndex, true);
+  if (!pos) return null;
 
-      // 2. Mark as approved in global AppContext — geometry NOT mutated yet
-      //    Geometry changes happen only when user clicks "Apply Fixes ✓" in the status bar
-      const updatedTable = appState.stage2Data.map(r =>
-          r._rowIndex === elementA._rowIndex ? { ...r, _fixApproved: true } : r
-      );
-      dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
-
-      // 3. Log the approval
-      dispatch({ type: "ADD_LOG", payload: {
-         stage: "FIXING",
-         type: "Approved",
-         row: elementA._rowIndex,
-         message: `3D Canvas: Approved Fix for row ${elementA._rowIndex}`
-      }});
-
-      setClicked(false);
-  };
-
-  const handleReject = (e) => {
-      e.stopPropagation();
-      setProposalStatus(elementA._rowIndex, false);
-      setClicked(false);
-  };
-
-  // Default to ep2/ep1 if ptA/ptB aren't explicitly provided by engine
-  const pointA = ptA || elementA.ep2 || elementA.ep1;
-  const pointB = ptB || elementB.ep1 || elementB.ep2;
-
-  if (!pointA || !pointB) return null;
-
-  const vecA = new THREE.Vector3(pointA.x, pointA.y, pointA.z);
-  const vecB = new THREE.Vector3(pointB.x, pointB.y, pointB.z);
-  const distance = vecA.distanceTo(vecB);
-
-  const midPoint = vecA.clone().lerp(vecB, 0.5);
-  const midX = midPoint.x;
-  const midY = midPoint.y;
-  const midZ = midPoint.z;
-
-  const direction = vecB.clone().sub(vecA).normalize();
-  const up = new THREE.Vector3(0, 1, 0);
-  const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
-
-  // Determine if it's a pipe-to-pipe connection
-  const isPipeA = (elementA.type || "").toUpperCase() === 'PIPE';
-  const isPipeB = (elementB.type || "").toUpperCase() === 'PIPE';
-
-  const isGap = distance > 1; // Assuming 1mm tolerance
-
-  const bore = elementA.bore || elementB.bore || 10;
-  const radius = bore / 2;
-
-  // Active Html overlay is expensive, so only show when clicked
   return (
-    <group>
-      {isPipeA && isPipeB && distance > 0 ? (
-          // Draw translucent pipe
-          <mesh
-            position={[midX, midY, midZ]}
-            quaternion={quaternion}
-            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-            onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
-            onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
-          >
-              <cylinderGeometry args={[radius, radius, distance, 16]} />
-              <meshStandardMaterial
-                  color={isGap ? (hovered ? "#f87171" : "#ef4444") : (hovered ? "#60a5fa" : "#3b82f6")}
-                  transparent={true}
-                  opacity={0.6}
-                  depthWrite={false}
-              />
-          </mesh>
-      ) : (
-          // Draw Line for non-pipe elements
-          <Line
-            points={[[vecA.x, vecA.y, vecA.z], [vecB.x, vecB.y, vecB.z]]}
-            color={hovered ? "#fcd34d" : "#ef4444"}
-            lineWidth={3}
-            dashed={true}
-            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-            onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
-            onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
-          />
-      )}
+    <group position={pos}>
+        {/* Pin Geometry */}
+        <mesh position={[0, 150, 0]}>
+            <sphereGeometry args={[50, 16, 16]} />
+            <meshBasicMaterial color={color} />
+        </mesh>
+        <mesh position={[0, 75, 0]}>
+            <coneGeometry args={[50, 150, 16]} rotation={[Math.PI, 0, 0]} />
+            <meshBasicMaterial color={color} />
+        </mesh>
 
-      {/* Fallback Icon for non-pipe elements */}
-      {(!isPipeA || !isPipeB) && (
-          <mesh
-            position={[midX, midY, midZ]}
-            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-            onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
-            onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
-          >
-              <sphereGeometry args={[radius * 2, 16, 16]} />
-              <meshStandardMaterial color={hovered ? "#fcd34d" : "#ef4444"} transparent={true} opacity={0.8} />
-          </mesh>
-      )}
+        {/* Label Background */}
+        <mesh position={[0, 250, 0]}>
+            <planeGeometry args={[300, 100]} />
+            <meshBasicMaterial color="white" side={THREE.DoubleSide} />
+        </mesh>
 
-      {/* Passive Text Label (cheap WebGL) */}
-      {!clicked && distance > 0 && (
+        {/* Label Text */}
         <Text
-          position={[midX, midY + radius * 3 + 50, midZ]}
-          color="#ef4444"
-          fontSize={80}
-          anchorX="center"
-          anchorY="middle"
+            position={[0, 250, 1]}
+            color="black"
+            fontSize={60}
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={2}
+            outlineColor="white"
+            fontWeight="bold"
         >
-          {Math.round(distance)}mm
+            {label}
         </Text>
-      )}
-
-      {/* Visual Indicator of Proposal status instead of HTML popups */}
-      {clicked && (
-         <Html position={[midX, midY, midZ]} center zIndexRange={[100, 0]}>
-             <div className="bg-slate-900 text-white px-3 py-2 rounded text-xs whitespace-nowrap border border-slate-700 shadow-lg pointer-events-auto flex flex-col gap-2">
-                 <div className="font-semibold text-slate-300 border-b border-slate-700 pb-1 mb-1">Proposed Fix</div>
-                 <div>{description}</div>
-                 <div className="flex gap-2 mt-1">
-                     <button className="flex-1 bg-green-600 hover:bg-green-500 text-white text-[10px] py-1 px-2 rounded" onClick={handleApproveAndMutate}>Approve</button>
-                     <button className="flex-1 bg-red-600 hover:bg-red-500 text-white text-[10px] py-1 px-2 rounded" onClick={handleReject}>Reject</button>
-                 </div>
-             </div>
-         </Html>
-      )}
     </group>
   );
 };
 
 
 // ----------------------------------------------------
-// Stage-2 Errors/Warnings Panel
+// Smart Fix Proposal Rendering
 // ----------------------------------------------------
-const IssuesPanel = () => {
-    const proposals = useStore(state => state.proposals);
-    const setProposalStatus = useStore(state => state.setProposalStatus);
-    const { state: appState, dispatch } = useAppContext();
+const ProposalOverlay = ({ proposal }) => {
+    if (!proposal || !proposal.ptA || !proposal.ptB) return null;
 
-    const handleFocusIssue = (prop) => {
-        if (!prop.elementA || (!prop.elementA.ep2 && !prop.elementA.ep1)) return;
-        const pt = prop.elementA.ep2 || prop.elementA.ep1;
-        useStore.getState().setSelected(prop.elementA._rowIndex);
-        window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: pt.x, y: pt.y, z: pt.z, dist: 1500 } }));
-    };
+    const vecA = new THREE.Vector3(proposal.ptA.x, proposal.ptA.y, proposal.ptA.z);
+    const vecB = new THREE.Vector3(proposal.ptB.x, proposal.ptB.y, proposal.ptB.z);
+    const mid = new THREE.Vector3().addVectors(vecA, vecB).multiplyScalar(0.5);
+    const dist = vecA.distanceTo(vecB);
 
-    const handleFocusRow = (e, row) => {
-        e.stopPropagation();
-        if (!row.ep2 && !row.cp && !row.ep1) return;
-        const pt = row.ep2 || row.cp || row.ep1;
-        useStore.getState().setSelected(row._rowIndex);
-        window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: pt.x, y: pt.y, z: pt.z, dist: 1500 } }));
-    };
-
-    const handleApprove = (e, prop) => {
-        e.stopPropagation();
-        setProposalStatus(prop.elementA._rowIndex, true);
-        const updatedTable = appState.stage2Data.map(r =>
-            r._rowIndex === prop.elementA._rowIndex ? { ...r, _fixApproved: true } : r
-        );
-        dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
-        dispatch({ type: "ADD_LOG", payload: {
-           stage: "FIXING", type: "Applied",
-           row: prop.elementA._rowIndex,
-           message: `User Approved Fix: ${prop.description}`
-        }});
-    };
-
-    const handleReject = (e, prop) => {
-        e.stopPropagation();
-        setProposalStatus(prop.elementA._rowIndex, false);
-        const updatedTable = appState.stage2Data.map(r =>
-            r._rowIndex === prop.elementA._rowIndex ? { ...r, _fixApproved: false } : r
-        );
-        dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
-        dispatch({ type: "ADD_LOG", payload: {
-           stage: "FIXING", type: "Warning",
-           row: prop.elementA._rowIndex,
-           message: `User Rejected Fix: ${prop.description}`
-        }});
-    };
-
-    // Validation errors/warnings from stage2Data
-    const validationIssues = (appState.stage2Data || []).filter(r =>
-        r.fixingAction && (r.fixingAction.includes('ERROR') || r.fixingAction.includes('WARNING'))
-    );
-
-    const activeProposals = proposals.filter(p => p._fixApproved !== true);
-    const hasAnything = validationIssues.length > 0 || activeProposals.length > 0;
-
-    if (!hasAnything) return null;
+    // Color based on action
+    let color = '#f59e0b'; // amber
+    if (proposal.action === 'GAP_STRETCH_PIPE' || proposal.action === 'GAP_SNAP_IMMUTABLE_BLOCK') color = '#3b82f6'; // blue
+    if (proposal.action === 'GAP_FILL') color = '#10b981'; // green
+    if (proposal.action.includes('TRIM')) color = '#ef4444'; // red
 
     return (
-        <div className="absolute top-4 right-32 z-10 w-80 max-h-[70vh] overflow-y-auto bg-slate-900/90 border border-red-500/30 rounded-lg shadow-2xl backdrop-blur text-sm pointer-events-auto flex flex-col">
-            <div className="bg-red-900/50 p-2 border-b border-red-500/30 sticky top-0 flex justify-between items-center">
-                <span className="text-red-300 font-bold flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    Stage 2 Issues ({validationIssues.length + activeProposals.length})
-                </span>
+        <group>
+            <Line points={[vecA, vecB]} color={color} lineWidth={3} dashed dashScale={10} dashSize={10} gapSize={10} />
+            <mesh position={vecA}>
+                <sphereGeometry args={[10, 8, 8]} />
+                <meshBasicMaterial color={color} />
+            </mesh>
+            <mesh position={vecB}>
+                <sphereGeometry args={[10, 8, 8]} />
+                <meshBasicMaterial color={color} />
+            </mesh>
+
+            <mesh position={mid}>
+                <planeGeometry args={[200, 60]} />
+                <meshBasicMaterial color="#1e293b" side={THREE.DoubleSide} opacity={0.8} transparent />
+            </mesh>
+            <Text
+                position={[mid.x, mid.y, mid.z + 1]}
+                color={color}
+                fontSize={30}
+                anchorX="center"
+                anchorY="middle"
+                outlineWidth={1}
+                outlineColor="#0f172a"
+            >
+                {proposal.action} ({dist.toFixed(1)}mm)
+            </Text>
+        </group>
+    );
+};
+
+
+// ----------------------------------------------------
+// Single Issue Navigation Panel
+// ----------------------------------------------------
+const SingleIssuePanel = ({ proposals, validationIssues, currentIssueIndex, setCurrentIssueIndex, onAutoCenter, onApprove, onReject }) => {
+    const allIssues = [
+        ...validationIssues.map(i => ({ type: 'validation', data: i })),
+        ...proposals.map(p => ({ type: 'proposal', data: p }))
+    ];
+
+    const safeIndex = Math.max(0, Math.min(currentIssueIndex, allIssues.length - 1));
+    const currentItem = allIssues[safeIndex];
+
+    useEffect(() => {
+        if (allIssues.length > 0 && onAutoCenter) {
+            onAutoCenter();
+        }
+    }, [safeIndex, allIssues.length]);
+
+    if (allIssues.length === 0) return null;
+
+    const handlePrev = () => setCurrentIssueIndex(Math.max(0, currentIssueIndex - 1));
+    const handleNext = () => setCurrentIssueIndex(Math.min(allIssues.length - 1, currentIssueIndex + 1));
+
+    return (
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 w-96 bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl backdrop-blur-md overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-800/80 border-b border-slate-700">
+                <div className="flex items-center gap-2">
+                    <span className="text-slate-300 font-bold text-sm">Issue {safeIndex + 1} of {allIssues.length}</span>
+                </div>
+                <div className="flex gap-1">
+                    <button onClick={handlePrev} disabled={currentIssueIndex === 0} className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    <button onClick={onAutoCenter} className="p-1 rounded hover:bg-slate-700 transition" title="Focus Camera">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    </button>
+                    <button onClick={handleNext} disabled={currentIssueIndex === allIssues.length - 1} className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                </div>
             </div>
 
-            <div className="p-2 flex flex-col gap-2">
-                {/* Validation Errors / Warnings */}
-                {validationIssues.length > 0 && (
-                    <>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Validation Issues</div>
-                        {validationIssues.map((row, idx) => (
-                            <div key={`val-${idx}`} className={`p-2 rounded border text-xs ${
-                                row.fixingAction.includes('ERROR') ? 'bg-red-950/60 border-red-700' : 'bg-orange-950/60 border-orange-700'
-                            }`}>
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="font-semibold text-slate-200 flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                        Row {row._rowIndex} — {row.type}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={(e) => handleFocusRow(e, row)} className="text-slate-400 hover:text-white transition-colors" title="Zoom to issue">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
-                                        </button>
-                                        <span className={`text-[10px] px-1 rounded border ${
-                                            row.fixingAction.includes('ERROR') ? 'text-red-400 bg-red-900/30 border-red-800' : 'text-orange-400 bg-orange-900/30 border-orange-800'
-                                        }`}>{row.fixingAction.includes('ERROR') ? 'ERROR' : 'WARN'}</span>
-                                    </div>
-                                </div>
-                                <p className={`text-xs mb-2 ${row._fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{row.fixingAction}</p>
-                                {row._fixApproved === true ? (
-                                    <div className="text-green-500 font-bold text-xs mt-1">✓ Approved</div>
-                                ) : row._fixApproved === false ? (
-                                    <div className="text-blue-500 line-through font-bold text-xs mt-1">✓ Rejected</div>
-                                ) : (
-                                    <>
-                                        {/* Remove inappropriate Approve/Reject buttons for pure validation messages without proposals */}
-                                    </>
-                                )}
-                            </div>
-                        ))}
-                    </>
-                )}
+            {/* Content Body */}
+            <div className="p-4">
+                {currentItem.type === 'validation' ? (
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-red-400 uppercase tracking-widest px-2 py-0.5 bg-red-900/30 rounded border border-red-800/50">Validation Issue</span>
+                            <span className="text-slate-400 text-xs">Row {currentItem.data._rowIndex}</span>
+                        </div>
+                        <p className="text-sm text-slate-200 mb-1">{currentItem.data.type || 'Unknown Component'}</p>
+                        <p className="text-xs text-slate-400 p-2 bg-slate-950 rounded border border-slate-800">{currentItem.data.fixingAction}</p>
+                    </div>
+                ) : (
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-amber-400 uppercase tracking-widest px-2 py-0.5 bg-amber-900/30 rounded border border-amber-800/50">Fix Proposal</span>
+                            <span className="text-slate-400 text-xs">Row {currentItem.data.elementA?._rowIndex}</span>
+                        </div>
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                            <p className="text-sm text-slate-200 font-medium">{currentItem.data.description}</p>
 
-                {/* Smart Fix Proposals */}
-                {activeProposals.length > 0 && (
-                    <>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 mt-1">Smart Fix Proposals</div>
-                        {activeProposals.map((prop, idx) => {
-                            return (
-                                <div
-                                    key={idx}
-                                    className="bg-slate-800/80 p-2 rounded border border-slate-700 hover:border-amber-500/50 cursor-pointer transition-colors"
-                                    onClick={() => handleFocusIssue(prop)}
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <span className="font-semibold text-slate-200 flex items-center gap-1">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                            Row {prop.elementA?._rowIndex} — {prop.elementA?.type}
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={(e) => { e.stopPropagation(); handleFocusIssue(prop); }} className="text-slate-400 hover:text-white transition-colors" title="Zoom to issue">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
-                                            </button>
+                            {/* Detailed Proposal Info */}
+                            {(() => {
+                                const prop = currentItem.data;
+                                return (
+                                    <div className="mt-2 pt-2 border-t border-slate-800 flex justify-between items-end">
+                                        <div>
+                                           <div className="text-[10px] text-slate-500">Action: {prop.action}</div>
+                                           {prop.dist !== undefined && <div className="text-[10px] text-slate-500">Delta: {prop.dist.toFixed(1)}mm</div>}
                                         </div>
-                                    </div>
-
-                                    {(() => {
-                                        let validationMsg = '';
-                                        let actionMsg = prop.description || "";
-
-                                        const passMatch = actionMsg.match(/^\[(Pass\s*\w+)\]/i);
-                                        let passPrefix = "[1st Pass]";
-                                        if (passMatch) {
-                                            const pMatch = passMatch[1].toLowerCase();
-                                            if (pMatch.includes('pass 2')) passPrefix = "[2nd Pass]";
-                                            else if (pMatch.includes('pass 3')) passPrefix = "[3rd Pass]";
-                                        }
-
-                                        if (actionMsg.includes('[Issue]') && actionMsg.includes('[Proposal]')) {
-                                            const parts = actionMsg.split('\n[Proposal]');
-                                            validationMsg = parts[0].replace(/^\[Pass\s*\w+\]\s*/i, '').replace('[Issue]', '').trim();
-                                            actionMsg = parts[1] ? parts[1].trim() : "";
-                                        }
-
-                                        // Ensure we don't accidentally remove essential numbers when stripping scores
-                                        if (actionMsg) {
-                                            actionMsg = actionMsg.replace(/\(Score:\s*[\d.]+\)/g, '').trim();
-                                            actionMsg = actionMsg.replace(/Score\s*[\d.]+\[[^\]]+\]/gi, '').trim();
-                                        }
-
-                                        return (
-                                            <div className="mt-2 text-xs font-mono">
-                                                <div className="font-semibold mb-1 flex items-start text-slate-300">
-                                                    <span className="text-slate-500 mr-1 whitespace-nowrap">{passPrefix}</span>
-                                                    <span className="flex-1">
-                                                        {validationMsg && <span className="text-slate-400 mr-1 font-bold">[Issue]</span>}
-                                                        {validationMsg}
-                                                    </span>
-                                                </div>
-                                                {actionMsg && (
-                                                    <div className="mt-1 pl-2 border-l-2 border-amber-500/50 text-amber-200/80">
-                                                        <span className="font-bold mr-1">[Proposal]</span>
-                                                        <span className={prop._fixApproved === false ? "line-through opacity-70 text-slate-500" : ""}>{actionMsg}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-
-                                    <div className="mt-3">
-                                        {prop._fixApproved === true ? (
-                                            <div className="text-green-500 font-bold text-xs mt-1">✓ Approved</div>
-                                        ) : prop._fixApproved === false ? (
-                                            <div className="text-blue-500 line-through font-bold text-xs mt-1">✓ Rejected</div>
-                                        ) : (
-                                            <div className="flex gap-2 items-center">
-                                                <button className="flex-1 bg-green-800 hover:bg-green-700 text-white text-xs py-1 rounded transition flex items-center justify-center gap-1" onClick={(e) => handleApprove(e, prop)}>
-                                                    ✓ Approve
-                                                </button>
-                                                <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-1 rounded transition flex items-center justify-center gap-1" onClick={(e) => handleReject(e, prop)}>
-                                                    ✗ Reject
-                                                    {prop.score !== undefined && prop.score < 10 && (
-                                                        <span className="text-[10px] text-orange-300 ml-1">(Score {prop.score} &lt; 10)</span>
-                                                    )}
-                                                </button>
+                                        {prop.score !== undefined && (
+                                            <div className="flex items-center">
+                                              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${prop.score >= 10 ? 'text-green-400 bg-green-900/30 border-green-800' : 'text-orange-400 bg-orange-900/30 border-orange-800'}`}>Score {prop.score}</span>
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </>
+                                );
+                            })()}
+
+                            {/* Actions */}
+                            <div className="mt-4 flex gap-2">
+                                {currentItem.data._fixApproved === true ? (
+                                    <div className="w-full text-center text-green-500 font-bold text-sm py-1 bg-green-900/20 rounded border border-green-800/30">✓ Approved</div>
+                                ) : currentItem.data._fixApproved === false ? (
+                                    <div className="w-full text-center text-slate-500 line-through font-bold text-sm py-1 bg-slate-800/50 rounded border border-slate-700">✗ Rejected</div>
+                                ) : (
+                                    <>
+                                        <button className="flex-1 bg-green-800 hover:bg-green-700 text-white text-sm py-1.5 rounded transition" onClick={(e) => onApprove(e, currentItem.data)}>
+                                            ✓ Approve
+                                        </button>
+                                        <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm py-1.5 rounded transition flex justify-center items-center gap-1" onClick={(e) => onReject(e, currentItem.data)}>
+                                            ✗ Reject
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>
     );
 };
 
-// ----------------------------------------------------
 // Main Tab Component
 // ----------------------------------------------------
 
@@ -593,12 +420,80 @@ const ControlsAutoCenter = () => {
     return <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.1} />;
 };
 
+
 export function CanvasTab() {
+  const { state: appState, dispatch } = useAppContext();
   const proposals = useStore(state => state.proposals);
+  const [currentIssueIndex, setCurrentIssueIndex] = useState(0);
+
+  const validationIssues = (appState.stage2Data || []).filter(r =>
+      r.fixingAction && (r.fixingAction.includes('ERROR') || r.fixingAction.includes('WARNING'))
+  );
 
   const handleAutoCenter = () => {
       window.dispatchEvent(new CustomEvent('canvas-auto-center'));
   };
+
+  const handleApprove = (e, prop) => {
+      e.stopPropagation();
+      useStore.getState().approveProposal(prop.id);
+
+      const updatedTable = [...appState.stage2Data];
+      const row = updatedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
+      if (row) {
+          row._fixApproved = true;
+          dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+          dispatch({ type: "ADD_LOG", payload: { stage: "FIXING", type: "Info", message: "Approved fix proposal for row " + row._rowIndex }});
+      }
+  };
+
+  const handleReject = (e, prop) => {
+      e.stopPropagation();
+      useStore.getState().rejectProposal(prop.id);
+
+      const updatedTable = [...appState.stage2Data];
+      const row = updatedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
+      if (row) {
+          row._fixApproved = false;
+          dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+          dispatch({ type: "ADD_LOG", payload: { stage: "FIXING", type: "Info", message: "Rejected fix proposal for row " + row._rowIndex }});
+      }
+  };
+
+  const triggerZoomToCurrent = () => {
+      // Logic is handled in the effect inside SingleIssuePanel,
+      // but we can force re-trigger by re-setting index or just letting the user click the button.
+      // Easiest is to dispatch a dummy event that the effect listens to, or just update state.
+      // A trick: set index to itself. React might not re-render, so we can dispatch the event directly here if needed,
+      // but SingleIssuePanel already handles auto-center via the onAutoCenter prop. Wait, SingleIssuePanel doesn't have the logic inside onAutoCenter.
+      // Let's pass a function that gets the current item and triggers the focus event.
+
+      const allIssues = [
+          ...validationIssues.map(i => ({ type: 'validation', data: i })),
+          ...proposals.map(p => ({ type: 'proposal', data: p }))
+      ];
+      if (allIssues.length === 0) return;
+      const safeIndex = Math.max(0, Math.min(currentIssueIndex, allIssues.length - 1));
+      const currentItem = allIssues[safeIndex];
+
+      let focusPt = null;
+      let focusDist = 2000;
+      if (currentItem.type === 'validation' && currentItem.data.ep1) {
+          focusPt = currentItem.data.ep1;
+      } else if (currentItem.type === 'proposal') {
+          const prop = currentItem.data;
+          if (prop.ptA && prop.ptB) {
+               focusPt = { x: (prop.ptA.x + prop.ptB.x)/2, y: (prop.ptA.y + prop.ptB.y)/2, z: (prop.ptA.z + prop.ptB.z)/2 };
+               focusDist = Math.max(prop.dist * 3, 2000);
+          } else if (prop.elementA && prop.elementA.ep1) {
+               focusPt = prop.elementA.ep1;
+          }
+      }
+      if (focusPt) {
+          window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { ...focusPt, dist: focusDist } }));
+      }
+  };
+
 
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] w-full overflow-hidden bg-slate-950 rounded-lg border border-slate-800 shadow-inner relative">
@@ -621,7 +516,17 @@ export function CanvasTab() {
         </button>
       </div>
 
-      <IssuesPanel />
+
+      <SingleIssuePanel
+          proposals={proposals}
+          validationIssues={validationIssues}
+          currentIssueIndex={currentIssueIndex}
+          setCurrentIssueIndex={setCurrentIssueIndex}
+          onAutoCenter={triggerZoomToCurrent}
+          onApprove={handleApprove}
+          onReject={handleReject}
+      />
+
 
       <Canvas camera={{ position: [5000, 5000, 5000], fov: 50, near: 1, far: 100000 }}>
         <color attach="background" args={['#020617']} />
@@ -631,11 +536,30 @@ export function CanvasTab() {
 
         <InstancedPipes />
 
-        {proposals.map((prop, idx) => (
-          <ProposalOverlay key={`prop-${idx}`} proposal={prop} />
-        ))}
 
-        <IssueMapPin />
+        {proposals.map((prop, idx) => {
+            // Calculate global index to check if active
+            const allIssues = [
+                ...validationIssues.map(i => ({ type: 'validation', data: i })),
+                ...proposals.map(p => ({ type: 'proposal', data: p }))
+            ];
+            const safeIndex = Math.max(0, Math.min(currentIssueIndex, allIssues.length - 1));
+            const isActive = allIssues[safeIndex]?.type === 'proposal' && allIssues[safeIndex]?.data.id === prop.id;
+
+            return isActive ? <ProposalOverlay key={`prop-${idx}`} proposal={prop} /> : null;
+        })}
+
+
+
+        {(() => {
+            const allIssues = [
+                ...validationIssues.map(i => ({ type: 'validation', data: i })),
+                ...proposals.map(p => ({ type: 'proposal', data: p }))
+            ];
+            const safeIndex = Math.max(0, Math.min(currentIssueIndex, allIssues.length - 1));
+            return <IssueMapPin activeIssue={allIssues[safeIndex]} />;
+        })()}
+
 
         <ControlsAutoCenter />
 

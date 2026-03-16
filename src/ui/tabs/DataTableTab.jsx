@@ -485,7 +485,7 @@ export function DataTableTab({ stage = "1" }) {
                 <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300`}>✗ Reject</button>
                 {row.fixingActionScore !== undefined && (
                     <span className="text-[10px] text-slate-500 ml-1 font-medium italic" title="Topology Engine Score">
-                        (Score: {Math.round(row.fixingActionScore)}{row.fixingActionScore < 10 ? ' < 10' : ''})
+                        (Score: {Math.round(row.fixingActionScore)})
                     </span>
                 )}
             </div>

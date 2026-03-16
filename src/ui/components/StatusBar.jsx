@@ -321,7 +321,7 @@ export function StatusBar({ activeTab, activeStage }) {
             </button>
         )}
 
-        {activeStage === '2' && (
+        {(activeTab === 'data' && activeStage === '2') && (
           <button
             onClick={() => setShowModal(true)}
             disabled={!isDataLoaded}
