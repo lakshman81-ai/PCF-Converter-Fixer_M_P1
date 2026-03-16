@@ -445,13 +445,10 @@ const IssuesPanel = () => {
                                             actionMsg = parts[1] ? parts[1].trim() : "";
                                         }
 
+                                        // Ensure we don't accidentally remove essential numbers when stripping scores
                                         if (actionMsg) {
                                             actionMsg = actionMsg.replace(/\(Score:\s*[\d.]+\)/g, '').trim();
-                                            actionMsg = actionMsg.replace(/Score\s*[\d.]+(\s*<\s*\d+)?/gi, '').trim();
-                                            actionMsg = actionMsg.replace(/^[-\s]+|[-\s]+$/g, '').trim();
-                                        }
-                                        if (validationMsg) {
-                                            validationMsg = validationMsg.replace(/^\[Pass\s*\w+\]\s*/i, '').replace('[Issue]', '').trim();
+                                            actionMsg = actionMsg.replace(/Score\s*[\d.]+\[[^\]]+\]/gi, '').trim();
                                         }
 
                                         return (

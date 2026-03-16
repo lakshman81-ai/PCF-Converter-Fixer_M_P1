@@ -64,7 +64,7 @@ PIPE
   await page.getByRole('button', { name: 'Run Engine' }).click();
   await page.waitForTimeout(1000);
 
-  // Run Smart Fix
+  // Run Smart Fix for Pass 1
   await page.getByRole('button', { name: 'Smart Fix 🔧' }).click();
   await page.waitForTimeout(1000);
 
