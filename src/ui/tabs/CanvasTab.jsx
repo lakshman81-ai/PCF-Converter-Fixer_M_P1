@@ -529,6 +529,7 @@ export function CanvasTab() {
           row._fixApproved = true;
           dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
           dispatch({ type: "ADD_LOG", payload: { stage: "FIXING", type: "Info", message: "Approved fix proposal for row " + row._rowIndex }});
+          useStore.getState().setProposalStatus(row._rowIndex, true);
       }
   };
 
@@ -541,6 +542,7 @@ export function CanvasTab() {
           row._fixApproved = false;
           dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
           dispatch({ type: "ADD_LOG", payload: { stage: "FIXING", type: "Info", message: "Rejected fix proposal for row " + row._rowIndex }});
+          useStore.getState().setProposalStatus(row._rowIndex, false);
       }
   };
 

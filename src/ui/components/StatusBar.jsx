@@ -35,18 +35,37 @@ export function StatusBar({ activeTab, activeStage }) {
     const logger = createLogger();
 
     if (runGroup === 'group2') {
-        const { proposals } = PcfTopologyGraph2(state.stage2Data, state.config, logger);
-        setZustandProposals(proposals);
+        // Enforce running Pass 1 explicitly by sending currentPass: 1
+        const { proposals } = PcfTopologyGraph2(state.stage2Data, { ...state.config, currentPass: 1 }, logger);
+
+        // Clear previous proposals for Pass 1 from Zustland before setting new
+        // and also filter them down just in case
+        const pass1Proposals = proposals.filter(p => p.pass === "Pass 1");
+        setZustandProposals(pass1Proposals);
+
         let errorFixes = 0;
         let warnFixes = 0;
-        const updatedTable = [...state.stage2Data];
+
+        // We map so we clear out any previous pass results and start fresh
+        const updatedTable = state.stage2Data.map(r => {
+            const row = { ...r };
+            if (!row._passApplied) {
+                delete row.fixingAction;
+                delete row.fixingActionTier;
+                delete row.fixingActionScore;
+                delete row.fixingActionRuleId;
+                delete row._fixApproved;
+            }
+            return row;
+        });
+
         logger.getLog().forEach(entry => {
              dispatch({ type: "ADD_LOG", payload: entry });
              if (entry.tier && entry.tier <= 2) errorFixes++;
              if (entry.tier && entry.tier === 3) warnFixes++;
-             if (entry.row && entry.tier) {
+             if (entry.row && entry.tier && entry.row !== "-") {
                  const row = updatedTable.find(r => r._rowIndex === entry.row);
-                 if (row && !row.fixingAction) {
+                 if (row && !row._passApplied && (!row.fixingActionTier || entry.tier < row.fixingActionTier)) {
                      row.fixingAction = entry.message;
                      row.fixingActionTier = entry.tier;
                      row.fixingActionRuleId = entry.ruleId;
@@ -54,9 +73,10 @@ export function StatusBar({ activeTab, activeStage }) {
                  }
              }
         });
-        proposals.forEach(prop => {
+
+        pass1Proposals.forEach(prop => {
             const row = updatedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
-            if (row) {
+            if (row && !row._passApplied) {
                 row.fixingAction = prop.description;
                 row.fixingActionTier = prop.dist < 25 ? 2 : 3;
                 if (prop.score !== undefined) row.fixingActionScore = prop.score;
@@ -65,7 +85,7 @@ export function StatusBar({ activeTab, activeStage }) {
         dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
         setZustandData(updatedTable);
         dispatch({ type: "SMART_FIX_COMPLETE", payload: { pass: 1, summary: {} } });
-        dispatch({ type: "SET_STATUS_MESSAGE", payload: `Analysis Complete (Group 2): Generated ${proposals.length} proposals.` });
+        dispatch({ type: "SET_STATUS_MESSAGE", payload: `Analysis Complete (Group 2): Generated ${pass1Proposals.length} proposals.` });
     } else {
         const result = runSmartFix(state.stage2Data, state.config, logger);
         let errorFixes = 0;
