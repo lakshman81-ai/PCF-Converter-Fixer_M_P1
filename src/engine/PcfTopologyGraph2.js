@@ -204,6 +204,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
             if (p1.type === 'bp') continue;
 
             let isClosed = false;
+            let hasNeighbor = false;
 
             for (const p2 of allPoints) {
                 if (p1.comp._rowIndex === p2.comp._rowIndex) continue;
@@ -212,9 +213,14 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                     isClosed = true;
                     break;
                 }
+                // If it doesn't have a Pass 1 issue, but has a local neighbor (< 50mm),
+                // it shouldn't trigger a massive global 6000mm fuzzy search pipe fill.
+                if (distance < 50) {
+                    hasNeighbor = true;
+                }
             }
 
-            if (!isClosed) {
+            if (!isClosed && !hasNeighbor) {
                 openEndpoints.push(p1);
             }
         }
