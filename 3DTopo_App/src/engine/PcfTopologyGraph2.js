@@ -1,6 +1,5 @@
 import { vec } from '../math/VectorMath.js';
 import { getEntryPoint, getExitPoint } from './GraphBuilder.js';
-import { rayShoot } from '../math/VectorMath.js';
 
 import { buildConnectivityGraph as spatialGraphBuilder } from './GraphBuilder.js';
 
@@ -89,18 +88,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
             // Bore ratio constraint
             if (A.bore && B.bore) {
                 const ratio = A.bore / B.bore;
-                if (ratio >= 0.5 && ratio <= 2.0) {
-                    if (config.smartFixer?.dynamicScoring) {
-                        const deviation = Math.abs(1 - ratio);
-                        let dynamicBonus = weights.sizeRatio * (1 - deviation);
-                        const averageBore = (A.bore + B.bore) / 2;
-                        // Math.log10(averageBore + 10) / Math.log10(100) normalizes against a 100mm baseline
-                        const sizeFactor = Math.max(0.1, Math.log10(averageBore + 10) / Math.log10(100));
-                        score += (dynamicBonus * sizeFactor);
-                    } else {
-                        score += weights.sizeRatio;
-                    }
-                }
+                if (ratio >= 0.5 && ratio <= 2.0) score += weights.sizeRatio;
             }
 
             const ptA = getExitPoint(A) || getEntryPoint(A);
@@ -175,149 +163,6 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
             }
         }
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // PASS 1C: RAY SHOOTER GAP RESOLUTION (Optional bridge pass)
-    // ════════════════════════════════════════════════════════════════════════
-    const rConfig = config.smartFixer?.rayShooter || { enabled: false };
-    if (rConfig.enabled && (config.currentPass || 1) === 1) {
-        logger.push({ stage: "FIXING", type: "Info", message: "Executing Pass 1C: Ray Shooter Gap Resolution" });
-
-        // Define Stage 1A (Resolved) and Stage 1B (Orphans)
-        const s1aRows = []; // components that successfully matched in Pass 1 or have no open endpoints
-        const s1bRows = []; // orphans
-
-        for (const C of physicals) {
-            if (C._IssueListed) {
-                s1aRows.push(C);
-            } else {
-                s1bRows.push(C);
-            }
-        }
-
-        const tubeTol = rConfig.tubeTolerance || 25.0;
-
-        for (let i = 0; i < s1bRows.length; i++) {
-            const O = s1bRows[i];
-            if (O._IssueListed) continue; // Might have been resolved earlier in the loop
-
-            const endpoints = [O.ep1, O.ep2, O.bp].filter(Boolean);
-
-            for (const EP of endpoints) {
-                // Determine ray direction. If PIPE, use ep2 - ep1.
-                let dir = null;
-                if (O.type === 'PIPE' && O.ep1 && O.ep2) {
-                    dir = vec.normalize(vec.sub(O.ep2, O.ep1));
-                    if (EP === O.ep1) dir = vec.scale(dir, -1); // Reverse if shooting backwards
-                } else if (O.deltaX !== undefined && O.deltaY !== undefined && O.deltaZ !== undefined) {
-                    dir = vec.normalize({ x: O.deltaX, y: O.deltaY, z: O.deltaZ });
-                }
-
-                if (!dir || vec.isZero(dir)) continue;
-
-                let hitWinner = null;
-                let passUsed = "";
-
-                // PASS 1: Same-Bore Candidates (s1bRows)
-                if (rConfig.pass1SameBore && !hitWinner) {
-                    const pool = s1bRows.filter(c => c._rowIndex !== O._rowIndex && c.bore === O.bore && !c._IssueListed);
-
-                    // Shoot both +dir and -dir (Target could be behind origin)
-                    let hits = rayShoot(EP, dir, 20000, pool, tubeTol);
-                    let negHits = rayShoot(EP, vec.scale(dir, -1), 20000, pool, tubeTol);
-                    hits = [...hits, ...negHits];
-
-                    if (hits.length > 0) {
-                        hitWinner = hits.reduce((min, h) => h.t < min.t ? h : min, hits[0]);
-                        passUsed = "Pass 1C-1 (Same-Bore)";
-                    }
-                }
-
-                // PASS 2: Any-Bore Candidates (s1bRows)
-                if (rConfig.pass2AnyBore && !hitWinner) {
-                    const pool = s1bRows.filter(c => c._rowIndex !== O._rowIndex && !c._IssueListed);
-                    let hits = rayShoot(EP, dir, 20000, pool, tubeTol);
-                    let negHits = rayShoot(EP, vec.scale(dir, -1), 20000, pool, tubeTol);
-                    hits = [...hits, ...negHits];
-
-                    if (hits.length > 0) {
-                        hitWinner = hits.reduce((min, h) => h.t < min.t ? h : min, hits[0]);
-                        passUsed = "Pass 1C-2 (Any-Bore)";
-                    }
-                }
-
-                // PASS 3: Resolved Candidates (s1aRows)
-                if (rConfig.pass3Resolved && !hitWinner) {
-                    const pool = s1aRows;
-                    let hits = rayShoot(EP, dir, 20000, pool, tubeTol);
-                    let negHits = rayShoot(EP, vec.scale(dir, -1), 20000, pool, tubeTol);
-                    hits = [...hits, ...negHits];
-
-                    if (hits.length > 0) {
-                        hitWinner = hits.reduce((min, h) => h.t < min.t ? h : min, hits[0]);
-                        passUsed = "Pass 1C-3 (Stage 1A Resolved)";
-                    }
-                }
-
-                // PASS 4: Global Axis Fallback
-                if (rConfig.pass4GlobalAxis && !hitWinner) {
-                    // Try shooting along all 6 cardinal axes
-                    const axes = [
-                        {x: 1, y: 0, z: 0}, {x: -1, y: 0, z: 0},
-                        {x: 0, y: 1, z: 0}, {x: 0, y: -1, z: 0},
-                        {x: 0, y: 0, z: 1}, {x: 0, y: 0, z: -1}
-                    ];
-
-                    const pool = rConfig.pass3Resolved ? [...s1bRows, ...s1aRows] : s1bRows;
-                    const validPool = pool.filter(c => c._rowIndex !== O._rowIndex);
-
-                    for (const axis of axes) {
-                        const hits = rayShoot(EP, axis, 20000, validPool, tubeTol);
-                        if (hits.length > 0) {
-                            hitWinner = hits.reduce((min, h) => h.t < min.t ? h : min, hits[0]);
-                            passUsed = `Pass 1C-4 (Global Axis ${axis.x ? 'X' : axis.y ? 'Y' : 'Z'})`;
-                            break;
-                        }
-                    }
-                }
-
-                if (hitWinner) {
-                    const C = hitWinner.component;
-                    const targetEP = hitWinner.EP;
-                    const dist = hitWinner.t;
-
-                    // If bores mismatch and it's pass 2, 3, or 4, we inject a reducer
-                    const injectReducer = (O.bore && C.bore && O.bore !== C.bore);
-                    const fixType = injectReducer ? 'GAP_FILL_REDUCER' : 'GAP_FILL';
-
-                    const desc = `[${passUsed}] [Issue] Unresolved topological void of ${dist.toFixed(1)}mm detected via Ray Shooter.\n[Proposal] Inject ${injectReducer ? 'PIPE & REDUCER' : 'PIPE'} bridging ${dist.toFixed(1)}mm.`;
-
-                    // Generate Proposal
-                    proposals.push({
-                        elementA: O,
-                        elementB: C,
-                        fixType,
-                        dist,
-                        score: 95, // Ray hit is highly confident
-                        description: desc,
-                        pass: "Pass 1", // Group it as Pass 1 so it clears properly
-                        ptA: EP,
-                        ptB: targetEP
-                    });
-
-                    // Immediately flag both components as resolved so they don't get shot again this run
-                    O._IssueListed = true;
-                    C._IssueListed = true;
-
-                    logger.push({ stage: "FIXING", type: "Fix", tier: injectReducer ? 3 : 2, row: O._rowIndex, message: desc, score: 95 });
-
-                    // Break out of EP loop since we resolved this orphan
-                    break;
-                }
-            }
-        }
-    }
-
 
     // Pass 2: Global Fuzzy Search (Major Axis) up to 6000mm
     if ((config.currentPass || 1) >= 2) {
@@ -416,17 +261,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                          // Add size ratio score if they match
                          if (A.bore && B.bore) {
                              const ratio = A.bore / B.bore;
-                             if (ratio >= 0.5 && ratio <= 2.0) {
-                                 if (config.smartFixer?.dynamicScoring) {
-                                     const deviation = Math.abs(1 - ratio);
-                                     let dynamicBonus = weights.sizeRatio * (1 - deviation);
-                                     const averageBore = (A.bore + B.bore) / 2;
-                                     const sizeFactor = Math.max(0.1, Math.log10(averageBore + 10) / Math.log10(100));
-                                     score += (dynamicBonus * sizeFactor);
-                                 } else {
-                                     score += weights.sizeRatio;
-                                 }
-                             }
+                             if (ratio >= 0.5 && ratio <= 2.0) score += weights.sizeRatio;
                          }
                          // Add line key score if they match
                          if (config.pteMode?.lineKeyMode && A._lineKey && B._lineKey && A._lineKey === B._lineKey) {
@@ -532,49 +367,12 @@ export function applyApprovedMutations(dataTable, proposals, logger, config) {
             };
             newPipes.push({ afterRow: A._rowIndex, pipe: filler });
             logger.push({ stage: "FIXING", type: "Applied", row: A._rowIndex, message: `GAP_FILL: Injected new PIPE after Row ${A._rowIndex} to bridge gap to Row ${B._rowIndex}.` });
-        } else if (prop.fixType === 'GAP_FILL_REDUCER') {
-            // Inject pipe & reducer (Ray Shooter Phase 2/3/4)
-            const reducerPt = { ...getEntryPoint(B) };
-
-            // Bridge Pipe
-            const filler = {
-                _rowIndex: -1,
-                csvSeqNo: `${A.csvSeqNo}.BR`,
-                type: 'PIPE',
-                bore: A.bore,
-                ep1: { ...getExitPoint(A) },
-                ep2: { ...reducerPt }, // Pipe ends at reducer
-                ca: { ...A.ca, 8: null },
-                fixingAction: null,
-            };
-            newPipes.push({ afterRow: A._rowIndex, pipe: filler });
-
-            // Reducer
-            const reducer = {
-                _rowIndex: -1,
-                _isSynthetic: true,
-                csvSeqNo: `${A.csvSeqNo}.RD`,
-                refNo: `SYNTH-RED-RAY`,
-                type: 'REDUCER',
-                bore: A.bore,
-                reducedBore: B.bore,
-                ep1: { ...reducerPt },
-                ep2: { ...reducerPt }, // Spec says 0 length reducer at target end
-                text: `REDUCER, LENGTH=0MM, RefNo:=SYNTH, SeqNo:SYNTH`,
-                ca: { 1: 'SYNTHETIC_REDUCER_RAY' },
-                fixingAction: null,
-                _passApplied: 1
-            };
-            // Add reducer *after* the bridge pipe
-            newPipes.push({ afterRow: A._rowIndex + 0.1, pipe: reducer });
-
-            logger.push({ stage: "FIXING", type: "Applied", row: A._rowIndex, message: `GAP_FILL_REDUCER: Injected new PIPE and REDUCER after Row ${A._rowIndex} to bridge gap and match bore to Row ${B._rowIndex}.` });
         }
     }
 
     // Insert new pipes
     for (const insertion of newPipes.sort((a,b) => b.afterRow - a.afterRow)) {
-        const idx = updatedTable.findIndex(r => r._rowIndex === Math.floor(insertion.afterRow));
+        const idx = updatedTable.findIndex(r => r._rowIndex === insertion.afterRow);
         if (idx > -1) {
             updatedTable.splice(idx + 1, 0, insertion.pipe);
         }

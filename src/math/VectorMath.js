@@ -23,3 +23,43 @@ export const vec = {
       Math.abs(a.x - b.x) <= tol && Math.abs(a.y - b.y) <= tol && Math.abs(a.z - b.z) <= tol,
     isZero: (v) => v.x === 0 && v.y === 0 && v.z === 0,
   };
+
+/**
+ * Ray Shooter Implementation
+ * @param {Object} start Origin of the ray {x,y,z}
+ * @param {Object} dir Normalized direction vector of the ray {x,y,z}
+ * @param {number} tMax Maximum projection distance along the ray
+ * @param {Array} pool Array of candidate component objects
+ * @param {number} tubeTol Maximum perpendicular distance to count as a hit
+ * @returns {Array} Array of hits: { component, EP, t, perpDist }
+ */
+export function rayShoot(start, dir, tMax, pool, tubeTol) {
+    let hits = [];
+    for (const C of pool) {
+        // Collect all potential open endpoints from the candidate
+        const endpoints = [];
+        if (C.ep1) endpoints.push(C.ep1);
+        if (C.ep2) endpoints.push(C.ep2);
+        if (C.bp) endpoints.push(C.bp); // Branch points are valid targets
+
+        for (const EP of endpoints) {
+            if (vec.approxEqual(start, EP, 0.1)) continue; // Don't shoot yourself
+
+            // Vector from start to target EP
+            const diff = vec.sub(EP, start);
+
+            // t is the projection length of diff onto the ray direction (dot product)
+            const t = vec.dot(diff, dir);
+            if (t <= 0 || t > tMax) continue; // Behind ray or too far
+
+            // perpendicular distance = || diff - t * dir ||
+            const projection = vec.scale(dir, t);
+            const perpDist = vec.mag(vec.sub(diff, projection));
+
+            if (perpDist <= tubeTol) {
+                hits.push({ component: C, EP, t, perpDist });
+            }
+        }
+    }
+    return hits;
+}

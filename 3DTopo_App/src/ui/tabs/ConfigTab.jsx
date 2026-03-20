@@ -183,17 +183,6 @@ export function ConfigTab() {
                   <label className="text-sm text-blue-800 font-medium">Min Topology Approval Score</label>
                   <input type="number" step="1" value={localConfig.smartFixer.minApprovalScore ?? 10} onChange={(e) => updateSmartFixer('minApprovalScore', parseFloat(e.target.value))} className="w-24 p-1 border rounded text-right text-sm font-mono" title="Threshold for proposing fixes. Drops below this score."/>
               </div>
-
-              <div className="bg-slate-50 p-3 rounded border border-slate-200 mt-2 space-y-2">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-sm font-semibold text-slate-700">Use Dynamic Logarithmic Scoring</span>
-                  <input type="checkbox" checked={localConfig.smartFixer.dynamicScoring ?? false} onChange={(e) => updateSmartFixer('dynamicScoring', e.target.checked)} className="form-checkbox h-4 w-4 text-blue-600 rounded"/>
-                </label>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  When enabled, the <code>Size Ratio</code> score scales dynamically using a logarithmic curve based on actual pipe bore absolute sizes, rather than assigning a flat bonus. It severely penalizes mismatches on small bore piping while being forgiving on main headers.
-                </p>
-              </div>
-
               <p className="text-[10px] text-slate-500 italic mt-1 leading-tight">
                 <strong>Score Basis:</strong> The engine scores proposals from 0-100 based on weighted metrics: Line_Key Match (30%), Element Axis Alignment (25%), Pipeline Bore Ratio Continuity (25%), Global Sweeping Radius (10%), and Immutable Bounds (10%). Proposals scoring below this threshold are automatically dropped.
               </p>
@@ -209,42 +198,6 @@ export function ConfigTab() {
             <div className="flex justify-between items-center">
               <label className="text-sm text-slate-600">Off-Axis Snapping</label>
               <input type="number" step="0.1" value={localConfig.smartFixer.diagonalMinorThreshold} onChange={(e) => updateSmartFixer('diagonalMinorThreshold', e.target.value)} className="w-24 p-1 border rounded text-right text-sm font-mono" />
-            </div>
-          </div>
-        </div>
-
-        {/* Ray Shooter Logic */}
-        <div className="bg-slate-50 p-4 rounded border border-slate-200 shadow-sm">
-          <h3 className="font-semibold text-slate-700 mb-3 flex items-center justify-between">
-            <span>Ray Shooter Integration (Stage 1C)</span>
-            <label className="flex items-center cursor-pointer">
-               <span className="text-xs text-slate-500 mr-2 font-normal">Enable Ray Shooter</span>
-               <input type="checkbox" checked={localConfig.smartFixer.rayShooter?.enabled ?? true} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, enabled: e.target.checked })} className="form-checkbox h-4 w-4 text-blue-600 rounded"/>
-            </label>
-          </h3>
-          <div className={`space-y-3 ${!(localConfig.smartFixer.rayShooter?.enabled ?? true) ? 'opacity-50 pointer-events-none' : ''}`}>
-            <div className="flex justify-between items-center">
-              <label className="text-sm text-slate-600" title="Max perpendicular distance from candidate endpoint to ray line">Tube Tolerance (mm)</label>
-              <input type="number" step="0.1" value={localConfig.smartFixer.rayShooter?.tubeTolerance ?? 25.0} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, tubeTolerance: parseFloat(e.target.value) })} className="w-24 p-1 border rounded text-right text-sm font-mono" />
-            </div>
-
-            <div className="pt-2 border-t border-slate-200">
-               <label className="flex items-center justify-between cursor-pointer mb-2">
-                 <span className="text-sm text-slate-600">Pass 1: Same-Bore Candidates</span>
-                 <input type="checkbox" checked={localConfig.smartFixer.rayShooter?.pass1SameBore ?? true} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, pass1SameBore: e.target.checked })} className="form-checkbox h-4 w-4 text-blue-600 rounded"/>
-               </label>
-               <label className="flex items-center justify-between cursor-pointer mb-2">
-                 <span className="text-sm text-slate-600">Pass 2: Any-Bore Candidates (Injects Reducers)</span>
-                 <input type="checkbox" checked={localConfig.smartFixer.rayShooter?.pass2AnyBore ?? true} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, pass2AnyBore: e.target.checked })} className="form-checkbox h-4 w-4 text-blue-600 rounded"/>
-               </label>
-               <label className="flex items-center justify-between cursor-pointer mb-2">
-                 <span className="text-sm text-slate-600" title="Shoot into already-resolved Stage 1A components">Pass 3: Resolved (Stage 1A) Candidates</span>
-                 <input type="checkbox" checked={localConfig.smartFixer.rayShooter?.pass3Resolved ?? false} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, pass3Resolved: e.target.checked })} className="form-checkbox h-4 w-4 text-blue-600 rounded"/>
-               </label>
-               <label className="flex items-center justify-between cursor-pointer">
-                 <span className="text-sm text-slate-600" title="Shoot along cardinal axes if sequential vector fails">Pass 4: Global Axis Fallback</span>
-                 <input type="checkbox" checked={localConfig.smartFixer.rayShooter?.pass4GlobalAxis ?? true} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, pass4GlobalAxis: e.target.checked })} className="form-checkbox h-4 w-4 text-blue-600 rounded"/>
-               </label>
             </div>
           </div>
         </div>
