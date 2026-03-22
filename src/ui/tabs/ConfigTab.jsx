@@ -225,7 +225,7 @@ export function ConfigTab() {
           <div className={`space-y-3 ${!(localConfig.smartFixer.rayShooter?.enabled ?? true) ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="flex justify-between items-center">
               <label className="text-sm text-slate-600" title="Max perpendicular distance from candidate endpoint to ray line">Tube Tolerance (mm)</label>
-              <input type="number" step="0.1" value={localConfig.smartFixer.rayShooter?.tubeTolerance ?? 25.0} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, tubeTolerance: parseFloat(e.target.value) })} className="w-24 p-1 border rounded text-right text-sm font-mono" />
+              <input type="number" step="0.1" value={localConfig.smartFixer.rayShooter?.tubeTolerance ?? 50.0} onChange={(e) => updateSmartFixer('rayShooter', { ...localConfig.smartFixer.rayShooter, tubeTolerance: parseFloat(e.target.value) })} className="w-24 p-1 border rounded text-right text-sm font-mono" />
             </div>
 
             <div className="pt-2 border-t border-slate-200">

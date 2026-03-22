@@ -38,8 +38,14 @@ function validateAgainst3DRules(prop, config, logger) {
         }
     }
 
-    // Gap Rules
-    if (isSyntheticGap && prop.elementA && prop.elementB) {
+    // Gap Rules (apply distance limits to all gap-bridging and stretching actions)
+    const isGapAction = prop.fixType === 'GAP_FILL' ||
+                        prop.fixType === 'GAP_FILL_REDUCER' ||
+                        prop.fixType === 'GAP_SNAP_IMMUTABLE_BLOCK' ||
+                        prop.fixType === 'GAP_STRETCH_PIPE' ||
+                        prop.fixType === 'GAP_SNAP_COMPONENT';
+
+    if (isGapAction && prop.elementA && prop.elementB) {
         // Use attached points if available (important for TEE branch gaps), fallback to endpoints
         const ptA = prop.ptA || getExitPoint(prop.elementA);
         const ptB = prop.ptB || getEntryPoint(prop.elementB);
@@ -284,7 +290,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
             }
         }
 
-        const tubeTol = rConfig.tubeTolerance || 25.0;
+        const tubeTol = rConfig.tubeTolerance || 50.0; // "Ray Shooter diameter", originally 25.0
 
         for (let i = 0; i < s1bRows.length; i++) {
             const O = s1bRows[i];
